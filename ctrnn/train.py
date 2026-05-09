@@ -128,14 +128,14 @@ def train(args):
         seq_len=args.seq_len,
     )
     env = dataset.env
-    obs_size = env.observation_space.shape[0]
-    act_size = env.action_space.n
+    input_dim = env.observation_space.shape[0]
+    output_dim = env.action_space.n
 
     # ---- model -------------------------------------------------------------
     model = CTRNN(
-        input_dim=obs_size,
+        input_dim=input_dim,
         hidden_dim=actual_hidden,
-        output_dim=act_size,
+        output_dim=output_dim,
         mask=mask,
         dt=args.dt_ms,
         tau=args.tau_ms,
@@ -147,8 +147,8 @@ def train(args):
 
     # ---- training loop -----------------------------------------------------
     print(
-        f"[train] task={args.task} hidden={actual_hidden} obs={obs_size} "
-        f"act={act_size} device={device}"
+        f"[train] task={args.task} hidden={actual_hidden} obs={input_dim} "
+        f"act={output_dim} device={device}"
     )
     running = 0.0
     for step in range(args.epochs):
@@ -158,7 +158,7 @@ def train(args):
 
         optimizer.zero_grad()
         outputs, _ = model(inputs)
-        loss = criterion(outputs.view(-1, act_size), labels)
+        loss = criterion(outputs.view(-1, output_dim), labels)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
@@ -168,7 +168,7 @@ def train(args):
             avg = running / args.log_every
             running = 0.0
             with torch.no_grad():
-                preds = outputs.view(-1, act_size).argmax(dim=-1)
+                preds = outputs.view(-1, output_dim).argmax(dim=-1)
                 acc = (preds == labels).float().mean().item()
             print(f"  step {step + 1:>5d}/{args.epochs}  loss={avg:.4f}  acc={acc:.3f}")
 
@@ -207,8 +207,8 @@ def train(args):
         "weights_path": "weights.pt",
         "dt_ms": args.dt_ms,
         "tau_ms": args.tau_ms,
-        "obs_size": obs_size,
-        "act_size": act_size,
+        "input_dim": input_dim,
+        "output_dim": output_dim,
         "val_acc": val_acc,
         "top_edges": top_edges,
     }

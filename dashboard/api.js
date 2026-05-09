@@ -35,5 +35,6 @@
     tasks: () => apiFetch('/tasks'),
     bundle: (task) => apiFetch('/bundle/' + encodeURIComponent(task)),
     infer: (payload) => apiFetch('/infer', { method: 'POST', body: JSON.stringify(payload) }),
+    protocol: (ailment) => apiFetch('/protocol', { method: 'POST', body: JSON.stringify({ ailment }) }),
   };
 })();

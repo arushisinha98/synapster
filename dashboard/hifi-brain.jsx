@@ -8,7 +8,7 @@
 
 const { useEffect, useRef, useState, useImperativeHandle, forwardRef } = React;
 
-const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f2b04a', electrodeColor = '#5ba3ff' }, ref) => {
+const HifiBrainViewport = forwardRef(({ onHud, onSelectionChange, accent = '#e85a3c', accent2 = '#f2b04a', electrodeColor = '#5ba3ff' }, ref) => {
   const mountRef = useRef(null);
   const apiRef = useRef({});
 
@@ -168,21 +168,52 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
     scene.add(electrodesGroup);
     const electrodes = [];
     const STIM_RADIUS = 0.55;
+    const MAX_ELECTRODES = 2;  // anode + cathode for tDCS/tACS
+    let selectedIdx = -1;
 
-    const accentCol = new THREE.Color(accent);
-    const accent2Col = new THREE.Color(accent2);
-    const electrodeCol = new THREE.Color(electrodeColor);
+    const accentCol = new THREE.Color(accent);          // anode (+) red
+    const accent2Col = new THREE.Color(accent2);        // hot core amber
+    const cathodeCol = new THREE.Color(electrodeColor); // cathode (-) blue
     const idleCol = new THREE.Color(0x5a5e66);
 
-    const placeElectrode = (point, normal, label) => {
+    const emitSelection = () => {
+      if (selectedIdx < 0 || !electrodes[selectedIdx]) {
+        onSelectionChange?.(null);
+        return;
+      }
+      const e = electrodes[selectedIdx];
+      onSelectionChange?.({
+        idx: selectedIdx,
+        label: e.label,
+        polarity: e.polarity,
+        // mesh-space point in MNI mm (inverse of MNI_SCALE + Y<->Z swap from line ~336)
+        mni: [e.point.x / MNI_SCALE, e.point.z / MNI_SCALE, e.point.y / MNI_SCALE],
+      });
+    };
+    const refreshHighlight = () => {
+      electrodes.forEach((e, i) => {
+        const sel = i === selectedIdx;
+        e.ring.scale.setScalar(sel ? 1.35 : 1.0);
+        e.ring.material.opacity = sel ? 0.95 : 0.55;
+      });
+    };
+    const setSelected = (idx) => {
+      selectedIdx = (idx >= 0 && idx < electrodes.length) ? idx : -1;
+      refreshHighlight();
+      emitSelection();
+    };
+
+    const placeElectrode = (point, normal, label, polarity = '+') => {
+      const isAnode = polarity === '+';
+      const bodyCol = isAnode ? accentCol : cathodeCol;
       const offset = normal.clone().multiplyScalar(0.022);
       const pos = point.clone().add(offset);
 
       // electrode body (low cylinder)
       const eGeo = new THREE.CylinderGeometry(0.075, 0.085, 0.03, 32);
       const eMat = new THREE.MeshStandardMaterial({
-        color: electrodeCol, metalness: 0.6, roughness: 0.3,
-        emissive: electrodeCol, emissiveIntensity: 0.15,
+        color: bodyCol, metalness: 0.6, roughness: 0.3,
+        emissive: bodyCol, emissiveIntensity: 0.15,
       });
       const eMesh = new THREE.Mesh(eGeo, eMat);
       eMesh.position.copy(pos);
@@ -199,16 +230,16 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
 
       // halo ring on surface
       const ringGeo = new THREE.RingGeometry(0.085, 0.105, 48);
-      const ringMat = new THREE.MeshBasicMaterial({ color: electrodeCol, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+      const ringMat = new THREE.MeshBasicMaterial({ color: bodyCol, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
       const ring = new THREE.Mesh(ringGeo, ringMat);
       ring.position.copy(pos);
       ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
       electrodesGroup.add(ring);
 
-      // stim volume — outer falloff
+      // stim volume — outer falloff (tinted by polarity so anode/cathode are distinguishable)
       const stimGeo = new THREE.SphereGeometry(STIM_RADIUS, 48, 36);
       const stimMat = new THREE.MeshBasicMaterial({
-        color: accentCol, transparent: true, opacity: 0.10, depthWrite: false,
+        color: bodyCol, transparent: true, opacity: 0.10, depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
       const stim = new THREE.Mesh(stimGeo, stimMat);
@@ -218,14 +249,14 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       // mid shell
       const midGeo = new THREE.SphereGeometry(STIM_RADIUS * 0.7, 36, 28);
       const midMat = new THREE.MeshBasicMaterial({
-        color: accentCol, transparent: true, opacity: 0.16, depthWrite: false,
+        color: bodyCol, transparent: true, opacity: 0.16, depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
       const mid = new THREE.Mesh(midGeo, midMat);
       mid.position.copy(point);
       electrodesGroup.add(mid);
 
-      // hot core
+      // hot core (amber for both polarities)
       const coreGeo = new THREE.SphereGeometry(STIM_RADIUS * 0.4, 24, 20);
       const coreMat = new THREE.MeshBasicMaterial({
         color: accent2Col, transparent: true, opacity: 0.28, depthWrite: false,
@@ -235,9 +266,40 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       core.position.copy(point);
       electrodesGroup.add(core);
 
-      electrodes.push({ pos, normal, point, mesh: eMesh, ring, stim, mid, core, label });
+      electrodes.push({ pos, normal, point, mesh: eMesh, stem, ring, stim, mid, core, label, polarity });
       recompute();
       return electrodes.length - 1;
+    };
+
+    // remove a single electrode by index (disposes its 6 mesh children).
+    const removeElectrodeAt = (idx) => {
+      if (idx < 0 || idx >= electrodes.length) return false;
+      const e = electrodes[idx];
+      [e.mesh, e.stem, e.ring, e.stim, e.mid, e.core].forEach((obj) => {
+        if (!obj) return;
+        electrodesGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
+      electrodes.splice(idx, 1);
+      if (selectedIdx === idx) selectedIdx = -1;
+      else if (selectedIdx > idx) selectedIdx -= 1;
+      refreshHighlight();
+      emitSelection();
+      recompute();
+      return true;
+    };
+
+    const clearAllElectrodes = () => {
+      while (electrodesGroup.children.length) {
+        const c = electrodesGroup.children[0];
+        electrodesGroup.remove(c);
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      }
+      electrodes.length = 0;
+      selectedIdx = -1;
+      emitSelection();
     };
 
     // Per-region E-field magnitude from each electrode as a point source:
@@ -282,8 +344,8 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       });
     };
 
-    // seed default electrodes (F3 + F4)
-    const seed1 = (theta, phi, label) => {
+    // seed default electrodes (F3 anode + F4 cathode)
+    const seed1 = (theta, phi, label, polarity = '+') => {
       const dir = new THREE.Vector3(
         Math.cos(phi) * Math.sin(theta),
         Math.sin(phi) * 0.85,
@@ -295,7 +357,7 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       const hits = ray.intersectObject(cortex);
       if (hits[0]) {
         const n = hits[0].face.normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(cortex.matrixWorld)).normalize();
-        placeElectrode(hits[0].point, n, label);
+        placeElectrode(hits[0].point, n, label, polarity);
       }
     };
     // load real cortex async; seed defaults once it's in. Until then the
@@ -369,60 +431,43 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
         placeUnits();
         logProbes();
 
-        seed1(-0.55, 0.55, 'F3');
-        seed1( 0.55, 0.55, 'F4');
+        seed1(-0.55, 0.55, 'F3', '+');
+        seed1( 0.55, 0.55, 'F4', '-');
       })
       .catch((err) => {
         console.warn('[brain] mesh load failed; staying on placeholder:', err);
         if (disposed) return;
-        seed1(-0.55, 0.55, 'F3');
-        seed1( 0.55, 0.55, 'F4');
+        seed1(-0.55, 0.55, 'F3', '+');
+        seed1( 0.55, 0.55, 'F4', '-');
       });
 
     // expose API
     apiRef.current = {
-      addProtocol() {
-        // clear and apply a 4-electrode bilateral set
-        while (electrodesGroup.children.length) {
-          const c = electrodesGroup.children[0];
-          electrodesGroup.remove(c);
-          if (c.geometry) c.geometry.dispose();
-          if (c.material) c.material.dispose();
-        }
-        electrodes.length = 0;
-        seed1(-0.55, 0.55, 'F3');
-        seed1( 0.55, 0.55, 'F4');
-        seed1(-0.85, 0.05, 'T7');
-        seed1( 0.85, 0.05, 'T8');
-      },
       applyProtocol(protocolElectrodes) {
-        // protocolElectrodes: [{pos:[x,y,z] in MNI mm, current_mA, freq_Hz}, ...]
-        // Clear existing, then place each on the cortex via a downward
-        // raycast from outside-toward-origin (same convention as seed1).
-        while (electrodesGroup.children.length) {
-          const c = electrodesGroup.children[0];
-          electrodesGroup.remove(c);
-          if (c.geometry) c.geometry.dispose();
-          if (c.material) c.material.dispose();
-        }
-        electrodes.length = 0;
+        // protocolElectrodes: [{pos:[x,y,z] in MNI mm, current_mA, freq_Hz, role?}, ...]
+        // Clear existing, then place at most 2 (anode + cathode) on the cortex
+        // via outside-toward-origin raycast (same convention as seed1).
+        clearAllElectrodes();
         if (!Array.isArray(protocolElectrodes) || !protocolElectrodes.length) {
           recompute();
           return;
         }
-        for (let idx = 0; idx < protocolElectrodes.length; idx++) {
-          const e = protocolElectrodes[idx];
+        const take = protocolElectrodes.slice(0, MAX_ELECTRODES);
+        for (let idx = 0; idx < take.length; idx++) {
+          const e = take[idx];
           if (!Array.isArray(e?.pos) || e.pos.length !== 3) continue;
           const [mx, my, mz] = e.pos;
           // MNI -> mesh: same (x, z, y) * MNI_SCALE swap as aparc placement.
           const target = new THREE.Vector3(mx * MNI_SCALE, mz * MNI_SCALE, my * MNI_SCALE);
-          // Raycast from outside the brain toward origin to land on cortex.
           const dir = target.clone();
-          if (dir.lengthSq() < 1e-6) {
-            // Pos at origin — no preferred direction; skip rather than guessing.
-            continue;
-          }
+          if (dir.lengthSq() < 1e-6) continue;  // origin pos, skip
           dir.normalize();
+          // Polarity: prefer agent-supplied role, else default by index.
+          const roleStr = String(e.role || '').toLowerCase();
+          const polarity = roleStr.includes('cath') || roleStr === '-' ? '-'
+            : roleStr.includes('an') || roleStr === '+' ? '+'
+            : (idx === 0 ? '+' : '-');
+          const label = polarity === '+' ? 'A' : 'C';
           const start = dir.clone().multiplyScalar(3);
           const ray = new THREE.Raycaster(start, dir.clone().negate());
           const hits = ray.intersectObject(cortex);
@@ -430,13 +475,36 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
             const n = hits[0].face.normal.clone()
               .applyMatrix3(new THREE.Matrix3().getNormalMatrix(cortex.matrixWorld))
               .normalize();
-            placeElectrode(hits[0].point, n, `E${idx + 1}`);
+            placeElectrode(hits[0].point, n, label, polarity);
           } else {
-            // Fallback: place at the target with a radial outward normal.
-            placeElectrode(target, dir.clone(), `E${idx + 1}`);
+            placeElectrode(target, dir.clone(), label, polarity);
           }
         }
       },
+      removeElectrode(idx) {
+        return removeElectrodeAt(idx);
+      },
+      removeSelected() {
+        if (selectedIdx < 0) return false;
+        return removeElectrodeAt(selectedIdx);
+      },
+      selectElectrode(idx) {
+        setSelected(idx);
+      },
+      flipPolarities() {
+        // swap '+' and '-' across all currently-placed electrodes by replacing them.
+        if (electrodes.length === 0) return;
+        const snapshot = electrodes.map((e) => ({
+          point: e.point.clone(),
+          normal: e.normal.clone(),
+          label: e.label,
+          polarity: e.polarity === '+' ? '-' : '+',
+        }));
+        clearAllElectrodes();
+        snapshot.forEach((s) => placeElectrode(s.point, s.normal, s.label, s.polarity));
+        recompute();
+      },
+      maxElectrodes: MAX_ELECTRODES,
       setCortexOpacity(v) {
         v = Math.max(0, Math.min(1, v));
         if (cortexUniforms && cortexUniforms.uOpacityCenter) {
@@ -522,13 +590,7 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
         };
       },
       reset() {
-        while (electrodesGroup.children.length) {
-          const c = electrodesGroup.children[0];
-          electrodesGroup.remove(c);
-          if (c.geometry) c.geometry.dispose();
-          if (c.material) c.material.dispose();
-        }
-        electrodes.length = 0;
+        clearAllElectrodes();
         recompute();
       },
     };
@@ -537,7 +599,7 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       else ref.current = apiRef.current;
     }
 
-    // raycast click
+    // raycast click — select-first, place if empty space and under cap.
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     let mouseDownPos = null;
@@ -553,10 +615,53 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
+
+      // 1) try existing electrodes (body + ring) first → select instead of place
+      const pickables = [];
+      electrodes.forEach((el) => {
+        if (el.mesh) pickables.push(el.mesh);
+        if (el.ring) pickables.push(el.ring);
+      });
+      if (pickables.length) {
+        const eHits = raycaster.intersectObjects(pickables, false);
+        if (eHits.length) {
+          const obj = eHits[0].object;
+          const idx = electrodes.findIndex((el) => el.mesh === obj || el.ring === obj);
+          if (idx >= 0) {
+            setSelected(idx);
+            lastInteract = Date.now();
+            return;
+          }
+        }
+      }
+
+      // 2) otherwise raycast the cortex → place new electrode if under cap
       const hits = raycaster.intersectObject(cortex);
-      if (!hits.length) return;
-      const n = hits[0].face.normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(cortex.matrixWorld)).normalize();
-      placeElectrode(hits[0].point, n, `E${electrodes.length + 1}`);
+      if (!hits.length) {
+        // clicked empty space → deselect
+        setSelected(-1);
+        return;
+      }
+      if (electrodes.length >= MAX_ELECTRODES) {
+        // at capacity — keep current selection, signal via HUD warn flag
+        onHud?.({
+          stimmed: 0, total: N_UNITS, peakE: 0, focality: 0,
+          electrodes: electrodes.length, warn: 'max ' + MAX_ELECTRODES + ' electrodes — delete one first',
+        });
+        // immediately re-emit a clean recompute so the warn flashes once.
+        setTimeout(() => recompute(), 1200);
+        return;
+      }
+      const n = hits[0].face.normal.clone()
+        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(cortex.matrixWorld))
+        .normalize();
+      // Pick the missing polarity so deleting either electrode and placing
+      // again restores an anode+cathode pair (not two of the same kind).
+      const hasAnode = electrodes.some((el) => el.polarity === '+');
+      const polarity = hasAnode ? '-' : '+';
+      const label = polarity === '+' ? 'A' : 'C';
+      const idx = placeElectrode(hits[0].point, n, label, polarity);
+      setSelected(idx);
       lastInteract = Date.now();
     });
 

@@ -80,16 +80,16 @@ def get_protocol(ailment: str) -> dict:
     """
     print(f"[protocol_agent] Querying Claude for ailment: '{ailment}'")
 
-    # web_search disabled for the demo: even a single search round folds
-    # tens of thousands of input tokens back into the next request, blowing
-    # past Anthropic's 30k input-tokens-per-minute org limit on
-    # claude-sonnet-4-6 and 502'ing the agent for minutes after each call.
-    # The model knows canonical NIBS protocols (DLPFC tDCS for depression,
-    # M1 anodal for motor recovery, theta-tACS for WM, etc.) from training.
-    # We lose live-verified DOIs but every query returns a usable protocol
-    # in ~3-5s with input tokens well under the rate ceiling.
-    response = _client().messages.create(
-        model="claude-sonnet-4-6",
+    # Two-tier fetch: prefer web_search for live DOI verification, fall back
+    # to a tools-free call on ANY error from the web_search path. We use
+    # Haiku 4.5 because its Tier 1 ITPM ceiling is 50k (vs Sonnet 4.x's 30k),
+    # giving ~1.7x more headroom for the same dollar tier. With max_uses=3
+    # the model can iterate searches if the first round misses, while a
+    # single 3-round call still leaves room for ~1 more query/minute on
+    # Tier 1 before tripping the limit. The fallback path uses the model's
+    # training knowledge of canonical NIBS protocols and always returns.
+    common_kwargs = dict(
+        model="claude-haiku-4-5",
         max_tokens=1000,
         system=SYSTEM_PROMPT,
         messages=[
@@ -97,12 +97,32 @@ def get_protocol(ailment: str) -> dict:
                 "role": "user",
                 "content": (
                     f"Patient ailment: {ailment}\n\n"
-                    "Return the protocol JSON. Cite real DOIs from your training "
-                    "knowledge — do not fabricate."
+                    "Return the protocol JSON. Cite real DOIs — do not fabricate."
                 ),
             }
         ],
     )
+    response = None
+    try:
+        response = _client().messages.create(
+            **common_kwargs,
+            tools=[
+                {
+                    "type": "web_search_20250305",
+                    "name": "web_search",
+                    "max_uses": 3,
+                }
+            ],
+        )
+        print("[protocol_agent] web_search path ok")
+    except Exception as e:
+        print(f"[protocol_agent] web_search failed ({type(e).__name__}: {e}); falling back to no-tools")
+        try:
+            response = _client().messages.create(**common_kwargs)
+            print("[protocol_agent] no-tools fallback ok")
+        except Exception as e2:
+            print(f"[protocol_agent] no-tools fallback also failed ({type(e2).__name__}: {e2})")
+            raise
 
     # Extract text blocks from the response (ignore tool_use blocks)
     text_blocks = [

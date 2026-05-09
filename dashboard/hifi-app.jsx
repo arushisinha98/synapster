@@ -2,8 +2,15 @@
 const { useState, useRef, useEffect } = React;
 
 // ---------- shared bits ----------
-const Btn = ({ children, variant, size, onClick, style }) => (
-  <button className={`btn ${variant ? 'btn-' + variant : ''} ${size ? 'btn-' + size : ''}`} onClick={onClick} style={style}>{children}</button>
+const Btn = ({ children, variant, size, onClick, style, disabled, title }) => (
+  <button
+    type="button"
+    className={`btn ${variant ? 'btn-' + variant : ''} ${size ? 'btn-' + size : ''} ${disabled ? 'btn-disabled' : ''}`}
+    onClick={disabled ? undefined : onClick}
+    disabled={!!disabled}
+    title={title}
+    style={style}
+  >{children}</button>
 );
 const Chip = ({ children, on, accent, style }) => (
   <span className={`chip ${on ? 'chip-on' : ''} ${accent ? 'chip-accent' : ''}`} style={style}>{children}</span>
@@ -48,22 +55,20 @@ const TitleBar = ({ onSimulate, simState, simError }) => {
     ? 'simulating…'
     : simState === 'done'
     ? 'sim ready'
-    : '2 collaborators';
+    : 'ready';
   const btnLabel = simState === 'running' ? '⋯ running' : '▶ Simulate';
   return (
     <div className="bar" style={{ gridColumn: '1 / -1' }}>
-      <span className="logo">C</span>
-      <span className="t-md t-bold">CTRNN-Viewer</span>
-      <span className="t-mono t-xs t-mute">/ untitled-montage.json</span>
+      <span className="logo">S</span>
+      <span className="t-md t-bold">Synapster</span>
+      <span className="t-mono t-xs t-mute">/ demo-protocol.json</span>
       <span className="t-mono t-xs" style={{ color: 'var(--accent-2)' }}>●</span>
       <div style={{ flex: 1 }} />
-      <Mono className="t-xs" mute>⌘K · cmd palette</Mono>
-      <span className="vdiv" />
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         <span className={dotClass} style={dotStyle} />
         <Mono soft className="t-xs" style={simState === 'error' ? { color: '#ff8e8e' } : {}}>{statusText}</Mono>
       </span>
-      <Btn size="sm">Share</Btn>
+      <Btn size="sm" disabled title="not implemented">Share</Btn>
       <Btn
         size="sm"
         variant="primary"
@@ -82,16 +87,8 @@ const TASK_OPTIONS = [
 ];
 
 // ---------- toolbar ----------
-const Toolbar = ({ tool, setTool, mode, setMode, task, setTask, view, setView }) => (
+const Toolbar = ({ mode, setMode, task, setTask, simState }) => (
   <div className="bar" style={{ gridColumn: '1 / -1', height: 38 }}>
-    <div className="seg">
-      {['Select', 'Place'].map(t => (
-        <div key={t} className={tool === t ? 'on' : ''} onClick={() => setTool(t)}>
-          {t === 'Select' ? '↘ Select' : '● Place'}
-        </div>
-      ))}
-    </div>
-    <span className="vdiv" />
     <Mono soft className="t-xs t-up">Mode</Mono>
     <div className="seg">
       {['tDCS', 'tACS'].map(m => (
@@ -99,7 +96,7 @@ const Toolbar = ({ tool, setTool, mode, setMode, task, setTask, view, setView })
       ))}
     </div>
     <span className="vdiv" />
-    <Mono soft className="t-xs t-up">RNN</Mono>
+    <Mono soft className="t-xs t-up">RNN task</Mono>
     <select
       value={task}
       onChange={e => setTask(e.target.value)}
@@ -107,18 +104,13 @@ const Toolbar = ({ tool, setTool, mode, setMode, task, setTask, view, setView })
     >
       {TASK_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
     </select>
-    <span className="vdiv" />
-    <Mono soft className="t-xs t-up">View</Mono>
-    <div className="seg">
-      {['3D', 'Top', 'L', 'R', 'Back'].map(v => (
-        <div key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v}</div>
-      ))}
-    </div>
     <div style={{ flex: 1 }} />
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span className="dot dot-stim" />
-      <Mono className="t-xs" style={{ color: 'var(--accent)' }}>LIVE · simulating</Mono>
-    </span>
+    {simState === 'running' && (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span className="dot dot-stim" />
+        <Mono className="t-xs" style={{ color: 'var(--accent)' }}>LIVE · simulating</Mono>
+      </span>
+    )}
   </div>
 );
 
@@ -247,97 +239,146 @@ const AgentRail = ({ ailment, setAilment, onSubmit, onApply, agentState, agentRe
   );
 };
 
-// ---------- dose-response plot ----------
-const DoseResponsePlot = ({ amp }) => {
-  // gaussian-ish dose response peaking at 1.7mA, falling off at high doses
-  const W = 260, H = 110, padL = 28, padR = 8, padT = 8, padB = 18;
-  const f = (mA) => 0.6 + 4 * mA * Math.exp(-Math.pow((mA - 1.7) / 1.1, 2));
-  const xs = [];
-  for (let i = 0; i <= 60; i++) xs.push((i / 60) * 4);
-  const yMax = 5.0;
-  const xToPx = (x) => padL + (x / 4) * (W - padL - padR);
-  const yToPx = (y) => H - padB - (y / yMax) * (H - padT - padB);
-  const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'} ${xToPx(x).toFixed(1)} ${yToPx(f(x)).toFixed(1)}`).join(' ');
-  const area = `${path} L ${xToPx(4).toFixed(1)} ${(H - padB).toFixed(1)} L ${padL} ${(H - padB).toFixed(1)} Z`;
-  const currentX = amp * 4;
-  const optimalX = 1.70;
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-      <defs>
-        <linearGradient id="doseGrad" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#f2b04a" stopOpacity="0.38" />
-          <stop offset="100%" stopColor="#f2b04a" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {/* y grid */}
-      {[1, 2, 3, 4].map(y => (
-        <g key={y}>
-          <line x1={padL} x2={W - padR} y1={yToPx(y)} y2={yToPx(y)} stroke="rgba(255,255,255,0.05)" />
-          <text x={padL - 4} y={yToPx(y) + 3} fontSize="8" fontFamily="JetBrains Mono" fill="#5b6068" textAnchor="end">{y}</text>
-        </g>
-      ))}
-      {/* x axis labels */}
-      {[0, 1, 2, 3, 4].map(x => (
-        <text key={x} x={xToPx(x)} y={H - 4} fontSize="8" fontFamily="JetBrains Mono" fill="#5b6068" textAnchor="middle">{x}mA</text>
-      ))}
-      {/* y axis label */}
-      <text x={4} y={padT + 6} fontSize="8" fontFamily="JetBrains Mono" fill="#5b6068">d′</text>
-      {/* curve area */}
-      <path d={area} fill="url(#doseGrad)" />
-      <path d={path} fill="none" stroke="#f2b04a" strokeWidth="1.2" />
-      {/* optimal marker */}
-      <line x1={xToPx(optimalX)} x2={xToPx(optimalX)} y1={padT} y2={H - padB} stroke="#f2b04a" strokeWidth="0.8" strokeDasharray="2 2" opacity="0.6" />
-      <circle cx={xToPx(optimalX)} cy={yToPx(f(optimalX))} r="3.5" fill="#f2b04a" stroke="#0a0b0d" strokeWidth="1" />
-      <text x={xToPx(optimalX) + 6} y={yToPx(f(optimalX)) - 4} fontSize="8" fontFamily="JetBrains Mono" fill="#f2b04a">optimal</text>
-      {/* current marker */}
-      <line x1={xToPx(currentX)} x2={xToPx(currentX)} y1={padT} y2={H - padB} stroke="#e85a3c" strokeWidth="0.8" />
-      <circle cx={xToPx(currentX)} cy={yToPx(f(currentX))} r="4" fill="#e85a3c" stroke="#0a0b0d" strokeWidth="1.2" />
-      <text x={xToPx(currentX) + 6} y={yToPx(f(currentX)) + 10} fontSize="8" fontFamily="JetBrains Mono" fill="#e85a3c">now</text>
-    </svg>
-  );
-};
-
 // freq slider mapping: 0..1 -> 1..150 Hz (linear, snapped to integer Hz)
 const sliderToHz = (v) => Math.max(1, Math.round(1 + v * 149));
 const hzToSlider = (hz) => Math.max(0, Math.min(1, (hz - 1) / 149));
 
+// ---------- hero performance card ----------
+const HeroCard = ({ simState, simError, perfDelta, perfDuration, taskLabel }) => {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (simState !== 'running') {
+      setProgress(0);
+      return;
+    }
+    setProgress(0);
+    const id = setInterval(() => {
+      setProgress(p => Math.min(0.95, p + 0.04 + Math.random() * 0.02));
+    }, 80);
+    return () => clearInterval(id);
+  }, [simState]);
+
+  const isRunning = simState === 'running';
+  const isError = simState === 'error';
+  const isDone = simState === 'done' && perfDelta;
+  const isIdle = !isRunning && !isError && !isDone;
+  const sign = (n) => (n >= 0 ? '+' : '');
+
+  return (
+    <div className="hero-card" data-hero-state={simState}>
+      <div className="hero-head">
+        <Mono soft className="t-xs t-up">Performance</Mono>
+        <span style={{ flex: 1 }} />
+        {isRunning && <Mono className="t-xs" style={{ color: 'var(--accent)' }}>⟳ sim…</Mono>}
+        {isDone && perfDuration != null && <Mono mute className="t-xs">{perfDuration}ms</Mono>}
+        {isError && <Mono className="t-xs" style={{ color: '#ff8e8e' }}>{simError || 'error'}</Mono>}
+      </div>
+      <div className="hero-body">
+        {isIdle && (
+          <>
+            <div className="hero-big hero-big-idle">— · —</div>
+            <div className="hero-sub">RUN TO SEE Δ</div>
+            <div className="hero-help">place electrodes · click ▶ Simulate</div>
+          </>
+        )}
+        {isRunning && (
+          <>
+            <div className="hero-big hero-big-pulse">· · ·</div>
+            <div className="hero-sub">computing…</div>
+            <div className="hero-bar"><div className="hero-bar-fill" style={{ width: (progress * 100).toFixed(0) + '%' }} /></div>
+          </>
+        )}
+        {isError && (
+          <>
+            <div className="hero-big hero-big-err">!</div>
+            <div className="hero-sub">simulation failed</div>
+            <div className="hero-help">{simError || 'try again'}</div>
+          </>
+        )}
+        {isDone && (
+          <>
+            <div className={`hero-big hero-big-done ${perfDelta.deltaPct >= 0 ? 'pos' : 'neg'}`}>
+              {sign(perfDelta.deltaPct)}{perfDelta.deltaPct.toFixed(1)}%
+            </div>
+            <div className="hero-sub">{taskLabel || 'task score'} {perfDelta.deltaPct >= 0 ? '↑' : '↓'}</div>
+            <div className="hero-meta">
+              <span><span className="t-mute">base</span> {perfDelta.base.toFixed(2)}</span>
+              <span><span className="t-mute">stim</span> {perfDelta.stim.toFixed(2)}</span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ---------- inspector ----------
-const Inspector = ({ hud, mode, amp, setAmp, freqHz, setFreqHz, cortexOpacity, setCortexOpacity, onViewStimJson }) => {
-  const [radius, setRadius] = useState(0.25);
-  const [opacity, setOpacity] = useState(0.55);
-  const [iso, setIso] = useState(0.3);
+const Inspector = ({
+  selectedElectrode, electrodeCount, maxElectrodes,
+  mode, amp, setAmp, freqHz, setFreqHz,
+  cortexOpacity, setCortexOpacity,
+  onViewStimJson, onDelete, onFlipPolarity,
+  simState, simError, perfDelta, perfDuration, taskLabel,
+}) => {
+  const sel = selectedElectrode;
+  const headerLabel = sel
+    ? `${sel.label} · ${sel.polarity === '+' ? 'anode' : 'cathode'}`
+    : `${electrodeCount}/${maxElectrodes} placed`;
   return (
     <div className="panel" style={{ borderLeft: '1px solid var(--line)' }}>
       <div className="panel-h">
         <span className="t-bold">Inspector</span>
         <span style={{ flex: 1 }} />
-        <Mono soft className="t-xs">F3 · anode</Mono>
+        <Mono soft className="t-xs">{headerLabel}</Mono>
       </div>
 
       <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* hero performance card */}
+        <HeroCard
+          simState={simState}
+          simError={simError}
+          perfDelta={perfDelta}
+          perfDuration={perfDuration}
+          taskLabel={taskLabel}
+        />
+
+        <div className="divider" />
+
         {/* selected electrode */}
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-            <Mono soft className="t-xs t-up">Selected</Mono>
-            <span className="epin"><span className="swatch" />F3</span>
+            <Mono soft className="t-xs t-up">Electrode</Mono>
+            <span style={{ flex: 1 }} />
+            {sel && (
+              <span className={`epin ${sel.polarity === '-' ? 'cathode' : ''}`}>
+                <span className="swatch" />{sel.label}
+              </span>
+            )}
           </div>
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="kv">
-              <span className="k">role</span><span className="v">anode (+)</span>
-              <span className="k">amp</span><span className="v">+{(amp * 4).toFixed(1)} mA</span>
-              <span className="k">freq</span><span className="v">{mode === 'tDCS' ? '— (DC)' : `${freqHz.toFixed(1)} Hz`}</span>
-              <span className="k">radius</span><span className="v">5.0 mm</span>
-              <span className="k">offset</span><span className="v">2.0 mm n̂</span>
-              <span className="k">MNI</span><span className="v">−38, 24, 41</span>
+          {!sel ? (
+            <div className="card hero-empty">
+              <Mono mute className="t-xs">click an electrode on the brain to inspect.</Mono>
+              <Mono mute className="t-xs" style={{ display: 'block', marginTop: 4 }}>
+                {electrodeCount} of {maxElectrodes} placed.
+              </Mono>
             </div>
-            <Slider value={amp} label="amplitude" unit={`±${(amp * 4).toFixed(1)} mA`} onChange={setAmp} />
-            <Slider value={radius} label="radius" unit={`${(radius * 20).toFixed(1)} mm`} onChange={setRadius} />
-            <div style={{ display: 'flex', gap: 4 }}>
-              <Btn size="sm">duplicate</Btn>
-              <Btn size="sm">flip polarity</Btn>
-              <Btn size="sm">delete</Btn>
+          ) : (
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="kv">
+                <span className="k">role</span><span className="v">{sel.polarity === '+' ? 'anode (+)' : 'cathode (−)'}</span>
+                <span className="k">amp</span><span className="v">±{(amp * 4).toFixed(1)} mA</span>
+                <span className="k">freq</span><span className="v">{mode === 'tDCS' ? '— (DC)' : `${freqHz.toFixed(1)} Hz`}</span>
+                <span className="k">MNI</span><span className="v">{sel.mni.map(v => Math.round(v)).join(', ')}</span>
+              </div>
+              <Slider value={amp} label="amplitude" unit={`±${(amp * 4).toFixed(1)} mA`} onChange={setAmp} />
+              <div style={{ display: 'flex', gap: 4 }}>
+                <Btn size="sm" disabled title="not in scope">duplicate</Btn>
+                <Btn size="sm" onClick={onFlipPolarity} disabled={electrodeCount === 0}>flip polarity</Btn>
+                <Btn size="sm" onClick={onDelete}>× delete</Btn>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="divider" />
@@ -369,8 +410,6 @@ const Inspector = ({ hud, mode, amp, setAmp, freqHz, setFreqHz, cortexOpacity, s
                 onChange={(v) => setFreqHz(sliderToHz(v))}
               />
             )}
-            <Slider value={opacity} label="opacity" unit={opacity.toFixed(2)} onChange={setOpacity} />
-            <Slider value={iso} label="iso threshold" unit={`${(iso).toFixed(2)} V/m`} onChange={setIso} />
             <div>
               <Mono soft className="t-xs">colormap</Mono>
               <div style={{ marginTop: 4, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, #1a3a8a, #5ba3ff, #f2b04a, #e85a3c)' }} />
@@ -382,36 +421,13 @@ const Inspector = ({ hud, mode, amp, setAmp, freqHz, setFreqHz, cortexOpacity, s
             <Btn size="sm" variant="primary" onClick={onViewStimJson}>view stim JSON</Btn>
           </div>
         </div>
-
-        <div className="divider" />
-
-        {/* dose-response plot */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-            <Mono soft className="t-xs t-up">Dose response</Mono>
-            <span style={{ flex: 1 }} />
-            <Mono mute className="t-xs">d′ vs amplitude</Mono>
-          </div>
-          <div className="card" style={{ padding: 10 }}>
-            <DoseResponsePlot amp={amp} />
-            <div className="kv" style={{ marginTop: 10 }}>
-              <span className="k">current</span><span className="v">{(amp * 4).toFixed(2)} mA → d′ {(0.6 + 4*amp*Math.exp(-Math.pow((4*amp - 1.7)/1.1, 2))).toFixed(2)}</span>
-              <span className="k">optimal</span><span className="v" style={{ color: 'var(--accent-2)' }}>1.70 mA → d′ 4.62</span>
-              <span className="k">headroom</span><span className="v" style={{ color: 'var(--accent-4)' }}>+{(4.62 - (0.6 + 4*amp*Math.exp(-Math.pow((4*amp - 1.7)/1.1, 2)))).toFixed(2)} d′</span>
-            </div>
-            <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-              <Btn size="sm" variant="accent">→ jump to optimal</Btn>
-              <Btn size="sm">resweep</Btn>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
 };
 
 // ---------- timeline ----------
-const Timeline = ({ mode, onTick }) => {
+const Timeline = ({ mode, amp, freqHz, onTick, taskLabel, perfDelta }) => {
   const [t, setT] = useState(0.21);
   useEffect(() => {
     const id = setInterval(() => setT(v => {
@@ -421,25 +437,29 @@ const Timeline = ({ mode, onTick }) => {
     }), 32);
     return () => clearInterval(id);
   }, [onTick]);
+  const ampMA = (amp * 4).toFixed(1);
+  const freqLabel = mode === 'tDCS' ? 'DC' : `${freqHz.toFixed(1)}Hz`;
   return (
     <div style={{
       gridColumn: '1 / -1', borderTop: '1px solid var(--line)', background: 'var(--panel)',
       padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Btn size="sm" variant="ghost">⏮</Btn>
-        <Btn size="sm" variant="primary">▶</Btn>
-        <Btn size="sm" variant="ghost">⏭</Btn>
+        <Btn size="sm" variant="ghost" disabled title="not in scope">⏮</Btn>
+        <Btn size="sm" variant="primary" disabled title="auto-playback">▶</Btn>
+        <Btn size="sm" variant="ghost" disabled title="not in scope">⏭</Btn>
         <Mono soft className="t-xs">t = {(t * 20).toFixed(2)} s / 20.00 s</Mono>
         <span className="vdiv" />
         <Mono soft className="t-xs t-up">Task</Mono>
-        <Chip>n-back · 2-back</Chip>
-        <Chip accent>d′ Δ +0.31</Chip>
+        <Chip>{taskLabel || '—'}</Chip>
+        {perfDelta && (
+          <Chip accent>
+            Δ {perfDelta.deltaPct >= 0 ? '+' : ''}{perfDelta.deltaPct.toFixed(1)}%
+          </Chip>
+        )}
         <span style={{ flex: 1 }} />
-        <Mono soft className="t-xs">accuracy</Mono>
-        <Mono className="t-xs" style={{ color: 'var(--accent-4)' }}>0.79 ↑</Mono>
-        <Mono soft className="t-xs">RT</Mono>
-        <Mono className="t-xs" style={{ color: 'var(--accent-4)' }}>−38ms</Mono>
+        <Mono soft className="t-xs">stim</Mono>
+        <Mono className="t-xs" style={{ color: 'var(--accent)' }}>{mode} · {ampMA}mA · {freqLabel}</Mono>
       </div>
 
       <div style={{ position: 'relative', height: 36, background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 6, overflow: 'hidden' }}>
@@ -472,13 +492,18 @@ const Timeline = ({ mode, onTick }) => {
 };
 
 // ---------- viewport overlay ----------
-const ViewportOverlay = ({ hud, electrodes }) => (
+const ViewportOverlay = ({ hud, perfDelta, warn }) => (
   <>
     {/* top-left help */}
     <div style={{ position: 'absolute', top: 12, left: 12, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ background: 'rgba(13,14,16,0.78)', backdropFilter: 'blur(6px)', border: '1px solid var(--line)', padding: '6px 10px', borderRadius: 6 }}>
-        <Mono soft className="t-xs">click cortex · place electrode · drag · orbit · scroll · zoom</Mono>
+        <Mono soft className="t-xs">click cortex to place · click electrode to select · ▶ Simulate</Mono>
       </div>
+      {warn && (
+        <div style={{ background: 'rgba(232,90,60,0.18)', border: '1px solid var(--accent)', padding: '6px 10px', borderRadius: 6 }}>
+          <Mono className="t-xs" style={{ color: 'var(--accent)' }}>{warn}</Mono>
+        </div>
+      )}
     </div>
     {/* top-right axis */}
     <div style={{ position: 'absolute', top: 12, right: 12, pointerEvents: 'none' }}>
@@ -508,15 +533,21 @@ const ViewportOverlay = ({ hud, electrodes }) => (
         </div>
         <div className="vdiv" style={{ height: 30 }} />
         <div>
-          <Mono mute className="t-xs t-up">predicted Δ</Mono>
-          <div className="t-mono t-bold" style={{ fontSize: 18, color: 'var(--accent-4)' }}>+0.31<span style={{ color: 'var(--ink-4)', fontSize: 11, fontWeight: 400 }}> d′</span></div>
+          <Mono mute className="t-xs t-up">measured Δ</Mono>
+          {perfDelta ? (
+            <div className="t-mono t-bold" style={{ fontSize: 18, color: perfDelta.deltaPct >= 0 ? 'var(--accent-4)' : '#ff8e8e' }}>
+              {perfDelta.deltaPct >= 0 ? '+' : ''}{perfDelta.deltaPct.toFixed(1)}<span style={{ color: 'var(--ink-4)', fontSize: 11, fontWeight: 400 }}> %</span>
+            </div>
+          ) : (
+            <div className="t-mono t-bold" style={{ fontSize: 18, color: 'var(--ink-4)' }}>—</div>
+          )}
         </div>
       </div>
 
       <div style={{ background: 'rgba(13,14,16,0.78)', backdropFilter: 'blur(6px)', border: '1px solid var(--line)', padding: 4, borderRadius: 8, display: 'flex', gap: 2 }}>
-        <Btn size="sm" variant="ghost">⟳</Btn>
-        <Btn size="sm" variant="ghost">⛶</Btn>
-        <Btn size="sm" variant="ghost">⤓</Btn>
+        <Btn size="sm" variant="ghost" disabled title="reset view (not implemented)">⟳</Btn>
+        <Btn size="sm" variant="ghost" disabled title="fullscreen (not implemented)">⛶</Btn>
+        <Btn size="sm" variant="ghost" disabled title="export (not implemented)">⤓</Btn>
       </div>
     </div>
   </>
@@ -568,23 +599,92 @@ const StimJsonModal = ({ json, onClose }) => {
 };
 
 // ---------- main app ----------
+const TASK_LABELS = {
+  perceptual_decision: 'attention',
+  working_memory: 'working memory',
+  reaction_time: 'reaction time',
+};
+
+// Score = mean of |activations| across time and units. Higher = more network
+// response. Symbolic scalar; the magnitude isn't a clinical metric, but Δ
+// between baseline (zero field) and stim runs is a real, reactive signal.
+function scoreOf(activations) {
+  if (!Array.isArray(activations) || !activations.length) return 0;
+  let sum = 0, count = 0;
+  for (let t = 0; t < activations.length; t++) {
+    const row = activations[t];
+    if (!row) continue;
+    for (let i = 0; i < row.length; i++) {
+      sum += Math.abs(row[i]);
+      count++;
+    }
+  }
+  return count > 0 ? sum / count : 0;
+}
+
+function makeZeroField(T, N) {
+  const out = new Array(T);
+  for (let t = 0; t < T; t++) {
+    const row = new Array(N);
+    for (let i = 0; i < N; i++) row[i] = 0;
+    out[t] = row;
+  }
+  return out;
+}
+
 const HifiApp = () => {
-  const [tool, setTool] = useState('Place');
   const [mode, setMode] = useState('tACS');
   const [task, setTask] = useState('working_memory');
-  const [view, setView] = useState('3D');
   const [amp, setAmp] = useState(0.5);          // 0..1, displayed as 0..4 mA
   const [freqHz, setFreqHz] = useState(6);       // tACS carrier
   const [cortexOpacity, setCortexOpacityState] = useState(0.62);
   const [stimJson, setStimJson] = useState(null);
   const [simState, setSimState] = useState('idle');     // idle | running | done | error
   const [simError, setSimError] = useState(null);
+  const [perfDelta, setPerfDelta] = useState(null);     // {base, stim, deltaPct}
+  const [perfDuration, setPerfDuration] = useState(null);
   const [ailment, setAilment] = useState('');
   const [agentState, setAgentState] = useState('idle'); // idle | thinking | done | error
   const [agentError, setAgentError] = useState(null);
   const [agentResult, setAgentResult] = useState(null);
   const [hud, setHud] = useState({ stimmed: 0, total: 68, peakE: 0, focality: 0, electrodes: 0 });
+  const [hudWarn, setHudWarn] = useState(null);
+  const [selectedElectrode, setSelectedElectrode] = useState(null);
   const brainRef = useRef(null);
+  const warnTimerRef = useRef(null);
+  // best-effort: not all backends ship maxElectrodes; fall back to 2.
+  const maxElectrodes = brainRef.current?.maxElectrodes || 2;
+
+  const taskLabel = TASK_LABELS[task] || task;
+
+  // probe backend tasks once (silent on failure — gate is local-friendly).
+  useEffect(() => {
+    const api = window.synapsterApi;
+    if (!api) return;
+    api.tasks()
+      .then((t) => console.log('[tasks] available:', t))
+      .catch((e) => console.warn('[tasks] probe failed (ok if backend offline):', e.message));
+  }, []);
+
+  // task change → perfDelta becomes stale (different RNN), reset to idle look.
+  useEffect(() => {
+    setPerfDelta(null);
+    setPerfDuration(null);
+    setSimError(null);
+    setSimState((s) => (s === 'running' ? s : 'idle'));
+    brainRef.current?.clearActivations?.();
+  }, [task]);
+
+  const handleHud = (h) => {
+    if (h.warn) {
+      setHudWarn(h.warn);
+      if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
+      warnTimerRef.current = setTimeout(() => setHudWarn(null), 1500);
+      // don't overwrite hud values when this is just a warn ping
+      return;
+    }
+    setHud({ stimmed: h.stimmed, total: h.total, peakE: h.peakE, focality: h.focality, electrodes: h.electrodes });
+  };
 
   const setCortexOpacity = (v) => {
     setCortexOpacityState(v);
@@ -597,6 +697,13 @@ const HifiApp = () => {
       console.log('[stim-json]', j);
       setStimJson(j);
     }
+  };
+
+  const handleDeleteSelected = () => {
+    brainRef.current?.removeSelected?.();
+  };
+  const handleFlipPolarity = () => {
+    brainRef.current?.flipPolarities?.();
   };
 
   const handleSimulate = async () => {
@@ -613,22 +720,35 @@ const HifiApp = () => {
       setSimState('error');
       return;
     }
-    // Backend's /infer accepts `task` + `field_per_region`. Trim metadata
-    // fields the server ignores anyway.
-    const body = { task: payload.task, field_per_region: payload.field_per_region };
+    const T = payload.field_per_region.length;
+    const N = payload.n_regions;
+    const stimBody = { task: payload.task, field_per_region: payload.field_per_region };
+    const baseBody = { task: payload.task, field_per_region: makeZeroField(T, N) };
+
     setSimState('running');
     setSimError(null);
+    setPerfDelta(null);
+    setPerfDuration(null);
+    const t0 = performance.now();
+
     try {
-      const resp = await api.infer(body);
-      brainRef.current?.setActivations(resp.activations);
-      console.log('[infer] ok', { T: resp.activations?.length, dt_ms: resp.dt_ms });
+      const [baseResp, stimResp] = await Promise.all([
+        api.infer(baseBody),
+        api.infer(stimBody),
+      ]);
+      const dur = Math.round(performance.now() - t0);
+      const base = scoreOf(baseResp.activations);
+      const stim = scoreOf(stimResp.activations);
+      const deltaPct = base > 1e-9 ? ((stim - base) / base) * 100 : 0;
+      setPerfDelta({ base, stim, deltaPct });
+      setPerfDuration(dur);
+      brainRef.current?.setActivations(stimResp.activations);
+      console.log('[infer] ok', { T: stimResp.activations?.length, dt_ms: stimResp.dt_ms, base: base.toFixed(3), stim: stim.toFixed(3), deltaPct: deltaPct.toFixed(2) });
       setSimState('done');
     } catch (e) {
       const msg = String(e?.message || e);
-      const friendly = /401/.test(msg)
-        ? 'auth failed'
-        : /Failed to fetch|NetworkError|CORS/i.test(msg)
-        ? 'backend offline'
+      const friendly = /401/.test(msg) ? 'auth failed'
+        : /Failed to fetch|NetworkError|CORS/i.test(msg) ? 'backend offline'
         : msg.length > 80 ? msg.slice(0, 77) + '…' : msg;
       console.warn('[infer] error:', msg);
       setSimError(friendly);
@@ -669,16 +789,23 @@ const HifiApp = () => {
     }
   };
 
+  // Apply protocol from agent: clears existing electrodes first (handled by
+  // brainRef.applyProtocol), then places the agent's suggestion. Hero card
+  // resets so user can re-Simulate against the new montage.
   const handleApplyProtocol = (electrodes) => {
-    if (Array.isArray(electrodes) && electrodes.length) {
-      brainRef.current?.applyProtocol(electrodes);
-    }
+    if (!Array.isArray(electrodes) || !electrodes.length) return;
+    brainRef.current?.applyProtocol(electrodes);
+    setPerfDelta(null);
+    setPerfDuration(null);
+    setSimState('idle');
+    setSimError(null);
+    brainRef.current?.clearActivations?.();
   };
 
   return (
     <div className="hf">
       <TitleBar onSimulate={handleSimulate} simState={simState} simError={simError} />
-      <Toolbar tool={tool} setTool={setTool} mode={mode} setMode={setMode} task={task} setTask={setTask} view={view} setView={setView} />
+      <Toolbar mode={mode} setMode={setMode} task={task} setTask={setTask} simState={simState} />
       <AgentRail
         ailment={ailment} setAilment={setAilment}
         onSubmit={handleAgentSubmit}
@@ -688,17 +815,38 @@ const HifiApp = () => {
         agentError={agentError}
       />
       <div style={{ position: 'relative', background: 'radial-gradient(ellipse at 30% 30%, #1a1c22 0%, #0a0b0d 70%)' }}>
-        <HifiBrainViewport ref={brainRef} onHud={setHud} />
-        <ViewportOverlay hud={hud} />
+        <HifiBrainViewport
+          ref={brainRef}
+          onHud={handleHud}
+          onSelectionChange={setSelectedElectrode}
+        />
+        <ViewportOverlay hud={hud} perfDelta={perfDelta} warn={hudWarn} />
       </div>
       <Inspector
-        hud={hud} mode={mode}
+        selectedElectrode={selectedElectrode}
+        electrodeCount={hud.electrodes}
+        maxElectrodes={maxElectrodes}
+        mode={mode}
         amp={amp} setAmp={setAmp}
         freqHz={freqHz} setFreqHz={setFreqHz}
         cortexOpacity={cortexOpacity} setCortexOpacity={setCortexOpacity}
         onViewStimJson={handleViewStimJson}
+        onDelete={handleDeleteSelected}
+        onFlipPolarity={handleFlipPolarity}
+        simState={simState}
+        simError={simError}
+        perfDelta={perfDelta}
+        perfDuration={perfDuration}
+        taskLabel={taskLabel}
       />
-      <Timeline mode={mode} onTick={handleTimelineTick} />
+      <Timeline
+        mode={mode}
+        amp={amp}
+        freqHz={freqHz}
+        onTick={handleTimelineTick}
+        taskLabel={taskLabel}
+        perfDelta={perfDelta}
+      />
       <StimJsonModal json={stimJson} onClose={() => setStimJson(null)} />
     </div>
   );

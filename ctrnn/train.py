@@ -32,7 +32,18 @@ from ctrnn.model import CTRNN, expand_sc_to_unit_mask  # noqa: E402
 
 
 def load_aparc_sc():
-    """Load ENIGMA aparc cortical SC matrix and region labels (68 regions)."""
+    """Load aparc cortical SC matrix and region labels (68 regions).
+
+    Prefers the cache at ``data/aparc_sc.npz`` (created by
+    ``scripts/setup_data.py``). Falls back to ENIGMA toolbox if the cache is
+    missing — fine on a login node, but the fallback may fail on a compute
+    node without network access.
+    """
+    cache = ROOT / "data" / "aparc_sc.npz"
+    if cache.exists():
+        d = np.load(cache, allow_pickle=False)
+        return d["sc"], [str(label) for label in d["labels"]]
+    print("[warn] no cached SC matrix; falling back to enigmatoolbox")
     from enigmatoolbox.datasets import load_sc
 
     sc, labels, _, _ = load_sc(parcellation="aparc")

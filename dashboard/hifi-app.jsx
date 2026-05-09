@@ -39,23 +39,40 @@ const Slider = ({ value, label, unit, onChange }) => {
 };
 
 // ---------- title bar ----------
-const TitleBar = () => (
-  <div className="bar" style={{ gridColumn: '1 / -1' }}>
-    <span className="logo">C</span>
-    <span className="t-md t-bold">CTRNN-Viewer</span>
-    <span className="t-mono t-xs t-mute">/ untitled-montage.json</span>
-    <span className="t-mono t-xs" style={{ color: 'var(--accent-2)' }}>●</span>
-    <div style={{ flex: 1 }} />
-    <Mono className="t-xs" mute>⌘K · cmd palette</Mono>
-    <span className="vdiv" />
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <span className="dot dot-live" />
-      <Mono soft className="t-xs">2 collaborators</Mono>
-    </span>
-    <Btn size="sm">Share</Btn>
-    <Btn size="sm" variant="primary">▶ Simulate</Btn>
-  </div>
-);
+const TitleBar = ({ onSimulate, simState, simError }) => {
+  const dotClass = simState === 'error' ? 'dot' : 'dot dot-live';
+  const dotStyle = simState === 'error' ? { background: '#ff6b6b', boxShadow: '0 0 8px #ff6b6b' } : {};
+  const statusText = simState === 'error'
+    ? (simError || 'backend error')
+    : simState === 'running'
+    ? 'simulating…'
+    : simState === 'done'
+    ? 'sim ready'
+    : '2 collaborators';
+  const btnLabel = simState === 'running' ? '⋯ running' : '▶ Simulate';
+  return (
+    <div className="bar" style={{ gridColumn: '1 / -1' }}>
+      <span className="logo">C</span>
+      <span className="t-md t-bold">CTRNN-Viewer</span>
+      <span className="t-mono t-xs t-mute">/ untitled-montage.json</span>
+      <span className="t-mono t-xs" style={{ color: 'var(--accent-2)' }}>●</span>
+      <div style={{ flex: 1 }} />
+      <Mono className="t-xs" mute>⌘K · cmd palette</Mono>
+      <span className="vdiv" />
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span className={dotClass} style={dotStyle} />
+        <Mono soft className="t-xs" style={simState === 'error' ? { color: '#ff8e8e' } : {}}>{statusText}</Mono>
+      </span>
+      <Btn size="sm">Share</Btn>
+      <Btn
+        size="sm"
+        variant="primary"
+        onClick={simState === 'running' ? undefined : onSimulate}
+        style={simState === 'running' ? { opacity: 0.6, cursor: 'wait' } : {}}
+      >{btnLabel}</Btn>
+    </div>
+  );
+};
 
 // neurogym task slots — match README integration contract
 const TASK_OPTIONS = [
@@ -380,12 +397,16 @@ const Inspector = ({ hud, mode, amp, setAmp, freqHz, setFreqHz, cortexOpacity, s
 };
 
 // ---------- timeline ----------
-const Timeline = ({ mode }) => {
+const Timeline = ({ mode, onTick }) => {
   const [t, setT] = useState(0.21);
   useEffect(() => {
-    const id = setInterval(() => setT(v => (v + 0.0008) % 1), 32);
+    const id = setInterval(() => setT(v => {
+      const nv = (v + 0.0008) % 1;
+      onTick?.(nv);
+      return nv;
+    }), 32);
     return () => clearInterval(id);
-  }, []);
+  }, [onTick]);
   return (
     <div style={{
       gridColumn: '1 / -1', borderTop: '1px solid var(--line)', background: 'var(--panel)',
@@ -542,6 +563,8 @@ const HifiApp = () => {
   const [freqHz, setFreqHz] = useState(6);       // tACS carrier
   const [cortexOpacity, setCortexOpacityState] = useState(0.62);
   const [stimJson, setStimJson] = useState(null);
+  const [simState, setSimState] = useState('idle');     // idle | running | done | error
+  const [simError, setSimError] = useState(null);
   const [hud, setHud] = useState({ stimmed: 0, total: 68, peakE: 0, focality: 0, electrodes: 0 });
   const brainRef = useRef(null);
 
@@ -558,9 +581,50 @@ const HifiApp = () => {
     }
   };
 
+  const handleSimulate = async () => {
+    if (simState === 'running') return;
+    const api = window.synapsterApi;
+    if (!api) {
+      setSimError('api wrapper missing');
+      setSimState('error');
+      return;
+    }
+    const payload = brainRef.current?.getStimJson(task, mode, amp * 4, freqHz);
+    if (!payload) {
+      setSimError('no stim payload');
+      setSimState('error');
+      return;
+    }
+    // Backend's /infer accepts `task` + `field_per_region`. Trim metadata
+    // fields the server ignores anyway.
+    const body = { task: payload.task, field_per_region: payload.field_per_region };
+    setSimState('running');
+    setSimError(null);
+    try {
+      const resp = await api.infer(body);
+      brainRef.current?.setActivations(resp.activations);
+      console.log('[infer] ok', { T: resp.activations?.length, dt_ms: resp.dt_ms });
+      setSimState('done');
+    } catch (e) {
+      const msg = String(e?.message || e);
+      const friendly = /401/.test(msg)
+        ? 'auth failed'
+        : /Failed to fetch|NetworkError|CORS/i.test(msg)
+        ? 'backend offline'
+        : msg.length > 80 ? msg.slice(0, 77) + '…' : msg;
+      console.warn('[infer] error:', msg);
+      setSimError(friendly);
+      setSimState('error');
+    }
+  };
+
+  const handleTimelineTick = (t) => {
+    brainRef.current?.setPlaybackT(t);
+  };
+
   return (
     <div className="hf">
-      <TitleBar />
+      <TitleBar onSimulate={handleSimulate} simState={simState} simError={simError} />
       <Toolbar tool={tool} setTool={setTool} mode={mode} setMode={setMode} task={task} setTask={setTask} view={view} setView={setView} />
       <AgentRail onApply={() => brainRef.current?.addProtocol()} />
       <div style={{ position: 'relative', background: 'radial-gradient(ellipse at 30% 30%, #1a1c22 0%, #0a0b0d 70%)' }}>
@@ -574,7 +638,7 @@ const HifiApp = () => {
         cortexOpacity={cortexOpacity} setCortexOpacity={setCortexOpacity}
         onViewStimJson={handleViewStimJson}
       />
-      <Timeline mode={mode} />
+      <Timeline mode={mode} onTick={handleTimelineTick} />
       <StimJsonModal json={stimJson} onClose={() => setStimJson(null)} />
     </div>
   );

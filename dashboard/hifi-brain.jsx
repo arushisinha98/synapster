@@ -150,6 +150,19 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       logProbes();
     }
 
+    // playback state for /infer activations (T x N). When `activations` is
+    // non-null the animate() loop overrides per-unit colors using `t` (0..1)
+    // instead of the 1/r² stim coloring from recompute(). Driven by the
+    // Timeline tick via apiRef.setPlaybackT().
+    const playback = {
+      activations: null,
+      T: 0,
+      N: 0,
+      unitMin: null,
+      unitMax: null,
+      t: 0,
+    };
+
     // --- electrodes ---
     const electrodesGroup = new THREE.Group();
     scene.add(electrodesGroup);
@@ -395,6 +408,42 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
           cortexMat.needsUpdate = true;
         }
       },
+      setActivations(activations) {
+        // activations: T x N float array. Stored on closure for the animate
+        // loop to read each frame. Pre-compute per-unit min/max for
+        // [0,1] normalization.
+        if (!activations || !activations.length) {
+          playback.activations = null;
+          playback.unitMin = null;
+          playback.unitMax = null;
+          recompute();  // fall back to 1/r² stim coloring
+          return;
+        }
+        const T = activations.length;
+        const N = activations[0].length;
+        const unitMin = new Float32Array(N).fill(+Infinity);
+        const unitMax = new Float32Array(N).fill(-Infinity);
+        for (let t = 0; t < T; t++) {
+          const row = activations[t];
+          for (let i = 0; i < N; i++) {
+            const v = row[i];
+            if (v < unitMin[i]) unitMin[i] = v;
+            if (v > unitMax[i]) unitMax[i] = v;
+          }
+        }
+        playback.activations = activations;
+        playback.T = T;
+        playback.N = N;
+        playback.unitMin = unitMin;
+        playback.unitMax = unitMax;
+      },
+      setPlaybackT(t) {
+        playback.t = Math.max(0, Math.min(1, t || 0));
+      },
+      clearActivations() {
+        playback.activations = null;
+        recompute();
+      },
       getStimJson(task, mode, ampMA, freqHz) {
         const T = 200, dt_ms = 20;
         const N = unitPositions.length;
@@ -501,6 +550,7 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
     // animate
     let raf;
     const t0 = performance.now();
+    let lastPlaybackTIdx = -1;
     const animate = () => {
       const now = performance.now();
       const dt = (now - t0) / 1000;
@@ -510,6 +560,39 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
         e.mid.material.opacity = pulse * 1.6;
         e.core.material.opacity = 0.20 + 0.10 * Math.sin(dt * 3.5 + i * 0.7);
       });
+      // Activation playback: when /infer results are loaded, override unit
+      // colors from the trial trace at the current Timeline position.
+      // Throttled to one update per timestep change to avoid the per-frame
+      // setColorAt cost when dt_ms >> 16.
+      if (playback.activations) {
+        const tIdx = Math.min(playback.T - 1, Math.max(0, Math.floor(playback.t * (playback.T - 1))));
+        if (tIdx !== lastPlaybackTIdx) {
+          lastPlaybackTIdx = tIdx;
+          const row = playback.activations[tIdx];
+          let stimmed = 0;
+          let peak = 0;
+          for (let i = 0; i < playback.N; i++) {
+            const v = row[i];
+            const lo = playback.unitMin[i];
+            const hi = playback.unitMax[i];
+            const range = hi - lo;
+            const norm = range > 1e-9 ? (v - lo) / range : 0;
+            if (norm > 0.55) stimmed++;
+            if (Math.abs(v) > peak) peak = Math.abs(v);
+            const c = new THREE.Color(0x5a5e66).lerp(accentCol, Math.min(1, 0.4 + norm * 0.7));
+            if (norm > 0.5) c.lerp(accent2Col, (norm - 0.5) * 1.2);
+            units.setColorAt(i, c);
+          }
+          if (units.instanceColor) units.instanceColor.needsUpdate = true;
+          onHud?.({
+            stimmed,
+            total: playback.N,
+            peakE: peak,
+            focality: playback.N === 0 ? 0 : stimmed / playback.N,
+            electrodes: electrodes.length,
+          });
+        }
+      }
       renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
     };

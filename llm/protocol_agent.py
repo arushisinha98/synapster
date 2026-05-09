@@ -76,7 +76,7 @@ def get_protocol(ailment: str) -> dict:
     print(f"[protocol_agent] Querying Claude for ailment: '{ailment}'")
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=1000,
         system=SYSTEM_PROMPT,
         tools=[
@@ -90,7 +90,7 @@ def get_protocol(ailment: str) -> dict:
                 "role": "user",
                 "content": (
                     f"Patient ailment: {ailment}\n\n"
-                    "Search for recent clinical evidence, then return the protocol JSON."
+                    "Search for recent clinical evidence. Return only the protocol JSON."
                 ),
             }
         ],
@@ -118,6 +118,15 @@ def get_protocol(ailment: str) -> dict:
     try:
         protocol = json.loads(raw_text)
     except json.JSONDecodeError as e:
+        # Attempt to salvage if there's preamble
+        if "{" in raw_text:
+            raw_text = raw_text[raw_text.index("{") :]
+            raw_text = raw_text.replace(raw_text.split("}")[-1], "").strip()  # Remove trailing garbage
+            if not raw_text.endswith("}"): raw_text += "}"
+            try:
+                protocol = json.loads(raw_text)
+            except json.JSONDecodeError:
+                pass  # Will raise the original error below
         raise ValueError(
             f"Could not parse Claude's response as JSON.\n"
             f"Raw response:\n{raw_text}\n\nError: {e}"

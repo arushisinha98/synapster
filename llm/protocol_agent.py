@@ -80,22 +80,25 @@ def get_protocol(ailment: str) -> dict:
     """
     print(f"[protocol_agent] Querying Claude for ailment: '{ailment}'")
 
+    # web_search disabled for the demo: even a single search round folds
+    # tens of thousands of input tokens back into the next request, blowing
+    # past Anthropic's 30k input-tokens-per-minute org limit on
+    # claude-sonnet-4-6 and 502'ing the agent for minutes after each call.
+    # The model knows canonical NIBS protocols (DLPFC tDCS for depression,
+    # M1 anodal for motor recovery, theta-tACS for WM, etc.) from training.
+    # We lose live-verified DOIs but every query returns a usable protocol
+    # in ~3-5s with input tokens well under the rate ceiling.
     response = _client().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1000,
         system=SYSTEM_PROMPT,
-        tools=[
-            {
-                "type": "web_search_20250305",
-                "name": "web_search",
-            }
-        ],
         messages=[
             {
                 "role": "user",
                 "content": (
                     f"Patient ailment: {ailment}\n\n"
-                    "Search for recent clinical evidence, then return the protocol JSON."
+                    "Return the protocol JSON. Cite real DOIs from your training "
+                    "knowledge — do not fabricate."
                 ),
             }
         ],

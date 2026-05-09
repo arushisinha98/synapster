@@ -1,3 +1,84 @@
+# Synapster — what we built
+
+![sim-screenshot](imgs/simulation-screenshot.png)
+
+A live tool for designing personalized brain stimulation protocols.
+Type a patient ailment, and an LLM agent reads papers, places electrodes
+on a 3D brain, runs a simulation, and refines until it converges on a
+protocol. The "brain" is a CTRNN wired by a real human connectome and
+pre-trained on three cognitive tasks. The "stimulation" is real V/m
+field physics coupled into the model dynamics. The LLM acts through
+tools, not freeform text.
+
+## The story
+
+Three things that don't usually live in the same room:
+
+### 1. Computational neuroscience that's actually neuroscience
+
+A 68-region continuous-time recurrent neural network. One unit per
+cortical region in the Desikan–Killiany parcellation. Recurrent
+connectivity is masked by the ENIGMA Toolbox structural connectome —
+signal can only flow where real human white-matter tracts exist.
+Trained on three neurogym cognitive tasks (perceptual decision,
+working memory, reaction time) and task-switchable from the dashboard.
+
+This isn't a generic RNN with a "brain" sticker. It's a CTRNN whose
+graph is the HCP-derived structural matrix, whose unit positions are
+fsaverage5 vertex centroids in MNI mm, and whose dynamics follow the
+seRNN / multi-region neocortex literature.
+
+### 2. Stimulation physics, no fudge
+
+Real scalp electrodes inject current; what reaches cortex is a vector
+electric field (V/m). The dashboard computes |E(r,t)| per region using
+the actual modality physics:
+
+- **tDCS** — constant point-source falloff: `|E| = k · I / r²`
+- **tACS** — oscillatory: `|E(t)| = k · I / r² · sin(2πft)`
+- **TI** — amplitude-modulated envelope `|A₁sin(2πf₁t) + A₂sin(2πf₂t)|`,
+  emerging only where the two carrier fields overlap
+
+The field is converted to a membrane perturbation via
+`α ≈ 0.1 mV/(V/m)` (the empirical pyramidal-cell coupling) and added
+at each unit's input — never to the weights. Stim is a *drive*, not a
+*retraining*. The membrane time constant naturally low-passes
+oscillating fields, which is also the right physics.
+
+### 3. A tool-using LLM agent that operates the simulator
+
+The side panel takes a patient ailment in plain English. The LLM does
+not just emit a JSON blob and stop. It iteratively builds a protocol
+by calling MCP tools:
+
+```
+search_papers(query)            → titles, abstracts, dois
+get_region_coords(region)       → MNI mm
+place_electrode(...)            → updates the dashboard live
+run_simulation()                → activations from /infer
+get_current_protocol()          → state inspection
+```
+
+The dashboard mirrors every tool call as it happens. The agent runs
+the simulator it's writing for, sees the activations, and revises.
+That's the actual scientific loop, not a one-shot.
+
+## What's innovative
+
+- **Closed-loop AI for medicine.** Most "AI for healthcare" demos are
+  one-shot prompt → answer. Synapster is iterative: the agent perceives
+  the simulation it just commissioned and adjusts.
+
+- **Stim as input, not as retraining.** The CTRNN is fixed; protocols
+  modulate dynamics through the same input pathway as task drive.
+  Means arbitrary protocols can be tested in milliseconds against a
+  *single* trained brain, and closed-loop optimization becomes
+  tractable.
+
+- **Anatomically and physically grounded.** No invented coordinates,
+  no waved-away coupling constant, no abstract "stim parameter" knob.
+  V/m, mV, MNI mm, region labels from FreeSurfer, connectivity from
+  HCP. Every number traces back to a published source.
 # Synapster
 
 **https://synapster-two.vercel.app**

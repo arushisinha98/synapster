@@ -78,6 +78,13 @@ anatomy — is what makes this more than a demo and more than a chatbot.
    doesn't help.
 
 ---
+## Example
+
+![sim-screenshot](imgs/example1.jpeg)
+
+*A simulation of a clinical protocol designed to improve the working memory, showing that it actually improves the working memory performance based on the CTRNN trained on memory tasks.*
+
+---
 
 ## How it works (without the jargon)
 

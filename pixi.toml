@@ -12,6 +12,8 @@ version = "0.1.0"
 smoke = "python -c \"import torch, neurogym; print('deps ok | torch', torch.__version__, '| cuda', torch.cuda.is_available(), '| mps', torch.backends.mps.is_available())\""
 serve = "python ctrnn/infer_server.py"
 llm = "python llm/protocol_agent.py"
+preprocess-brain = "python dashboard/scripts/preprocess_brain.py"
+test-aparc = "python dashboard/scripts/test_aparc_inside.py"
 
 [dependencies]
 python = "3.11.*"
@@ -36,6 +38,8 @@ gym = "*"
 anthropic = ">=0.40"
 openai = ">=1.40"
 arxiv = ">=2.1"
+trimesh = ">=4.0"
+fast-simplification = ">=0.1.13"
 
 # Two envs: `default` (CPU/MPS, used on macOS) and `hpc` (CUDA on linux-64).
 # Run training on the cluster with: pixi run -e hpc python ctrnn/train.py ...

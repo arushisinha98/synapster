@@ -84,6 +84,16 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: 
 .btn-ghost:hover { background: var(--panel-2); color: var(--ink); }
 .btn-sm { height: 22px; padding: 0 8px; font-size: 11px; border-radius: 5px; }
 .btn-icon { width: 26px; padding: 0; justify-content: center; }
+.btn-disabled, .btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.btn-disabled:hover, .btn[disabled]:hover {
+  background: var(--panel-2);
+  color: var(--ink-2);
+  border-color: var(--line-strong);
+}
 
 .task-select {
   height: 26px; padding: 0 8px;
@@ -252,14 +262,97 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: 
   transition: width 0.3s;
 }
 
-/* electrode pin */
+/* electrode pin — anode warm (red) by default, cathode cool (blue) */
 .epin {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--mono); font-size: 10px;
 }
 .epin .swatch {
   width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px rgba(232,90,60,0.3);
+}
+.epin.cathode .swatch {
   background: var(--accent-3);
   box-shadow: 0 0 0 1.5px rgba(91,163,255,0.3);
 }
-.epin.cathode .swatch { background: #c25c5c; box-shadow: 0 0 0 1.5px rgba(194,92,92,0.3); }
+
+/* ---------- hero performance card ---------- */
+.hero-card {
+  position: relative;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.hero-card[data-hero-state="running"] {
+  border-color: rgba(232,90,60,0.35);
+  box-shadow: 0 0 0 1px rgba(232,90,60,0.08), 0 6px 22px rgba(232,90,60,0.12);
+}
+.hero-card[data-hero-state="done"] {
+  border-color: rgba(78,201,164,0.35);
+  box-shadow: 0 0 0 1px rgba(78,201,164,0.06), 0 6px 22px rgba(78,201,164,0.10);
+}
+.hero-card[data-hero-state="error"] {
+  border-color: rgba(255,107,107,0.35);
+}
+.hero-head {
+  display: flex; align-items: center; gap: 6px; min-height: 16px;
+}
+.hero-body {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 6px 0 2px;
+}
+.hero-big {
+  font-family: var(--mono);
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.hero-big-idle { color: var(--ink-4); }
+.hero-big-pulse {
+  color: var(--accent);
+  animation: heroPulse 1.0s ease-in-out infinite;
+}
+.hero-big-err { color: #ff6b6b; font-size: 30px; }
+.hero-big-done.pos { color: var(--accent-4); }
+.hero-big-done.neg { color: #ff8e8e; }
+.hero-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.hero-help {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-4);
+  margin-top: 2px;
+  text-align: center;
+}
+.hero-meta {
+  display: flex; gap: 16px; margin-top: 4px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+}
+.hero-meta .t-mute { color: var(--ink-4); margin-right: 4px; }
+.hero-bar {
+  width: 80%; height: 4px; border-radius: 2px;
+  background: var(--panel-3); overflow: hidden; margin-top: 4px;
+}
+.hero-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.18s ease;
+}
+.hero-empty {
+  text-align: center;
+  padding: 14px 12px;
+}
+@keyframes heroPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1.00; transform: scale(1.04); }
+}

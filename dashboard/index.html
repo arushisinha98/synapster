@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>CTRNN-Viewer · hi-fi prototype</title>
+<title>Synapster · brain-stim protocol designer</title>
 <link rel="stylesheet" href="hifi.css" />
 <style>
 .auth-gate {
@@ -79,24 +79,12 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 
 function Root() {
-  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  return (
-    <>
-      <HifiApp />
-      <TweaksPanel title="Tweaks">
-        <TweakSection title="theme">
-          <TweakColor label="stim accent" value={t.accent}
-            options={[
-              ['#e85a3c','#f2b04a','#5ba3ff'],
-              ['#5ba3ff','#9d6dff','#f2b04a'],
-              ['#4ec9a4','#f2b04a','#5ba3ff'],
-            ]}
-            onChange={v => setTweak('accent', v)} />
-        </TweakSection>
-      </TweaksPanel>
-    </>
-  );
+  // TweaksPanel is dev-only chrome. Hidden for the demo. Restore the
+  // wrapper below if you want the theme color picker back.
+  return <HifiApp />;
 }
+// eslint-disable-next-line no-unused-vars
+const _devTweakDefaults = TWEAK_DEFAULTS;
 
 ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
 </script>

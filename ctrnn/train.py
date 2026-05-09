@@ -3,17 +3,22 @@
 Pattern follows neurogym's pytorch supervised-learning example:
 https://neurogym.github.io/neurogym/latest/examples/supervised_learning_pytorch/
 
+Bundle layout matches the integration contract in README.md:
+    ctrnn/bundles/<task>.json   - metadata read by the dashboard
+    ctrnn/bundles/<task>.pt     - state dict loaded by the inference server
+
+Task names are snake_case (perceptual_decision, working_memory, reaction_time)
+to match the dashboard's API; the neurogym env id is resolved via TASK_MAP.
+
 Usage:
-    python ctrnn/train.py --task PerceptualDecisionMaking-v0 \
-        --epochs 2000 --hidden 144 --seed 0 --device cuda \
-        --out ctrnn/bundles/perceptual_decision
+    python ctrnn/train.py --task perceptual_decision \\
+        --epochs 2000 --device cuda --out ctrnn/bundles
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -21,7 +26,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-# Allow running from anywhere as `python ctrnn/train.py` or `python -m ctrnn.train`.
+# Allow running as `python ctrnn/train.py` or `python -m ctrnn.train`.
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -29,6 +34,15 @@ if str(ROOT) not in sys.path:
 import neurogym as ngym  # noqa: E402
 
 from ctrnn.model import CTRNN, expand_sc_to_unit_mask  # noqa: E402
+
+
+# Snake-case task name -> neurogym env id. Single source of truth; the
+# inference server should import this dict too.
+TASK_MAP = {
+    "perceptual_decision": "PerceptualDecisionMaking-v0",
+    "working_memory":      "DelayedMatchSample-v0",
+    "reaction_time":       "ReadySetGo-v0",
+}
 
 
 def load_aparc_sc():
@@ -50,34 +64,6 @@ def load_aparc_sc():
     return np.asarray(sc), [str(label) for label in labels]
 
 
-def fibonacci_sphere_centroids(n: int, radius_mm: float = 70.0) -> np.ndarray:
-    """Even-ish placement of n points on a sphere, in MNI-mm-ish space.
-
-    Stand-in for true Desikan-Killiany centroids. The dashboard's brain mesh is
-    loaded independently, so unit positions only need to occupy a plausible
-    cortex-shaped shell for the demo. Swap in real MNI centroids later.
-    """
-    indices = np.arange(0, n, dtype=np.float64) + 0.5
-    phi = np.arccos(1 - 2 * indices / n)
-    theta = math.pi * (1 + 5 ** 0.5) * indices
-    x = radius_mm * np.cos(theta) * np.sin(phi)
-    y = radius_mm * np.sin(theta) * np.sin(phi)
-    z = radius_mm * np.cos(phi)
-    return np.stack([x, y, z], axis=1)
-
-
-def assign_unit_positions(
-    centroids: np.ndarray,
-    units_per_region: int,
-    jitter_mm: float,
-    rng: np.random.Generator,
-) -> np.ndarray:
-    """Place units near their region centroid with small Gaussian jitter."""
-    positions = np.repeat(centroids, units_per_region, axis=0)
-    positions += rng.normal(0.0, jitter_mm, size=positions.shape)
-    return positions
-
-
 def evaluate(model: CTRNN, dataset, n_batches: int, device: torch.device) -> float:
     model.eval()
     correct = 0
@@ -96,33 +82,40 @@ def evaluate(model: CTRNN, dataset, n_batches: int, device: torch.device) -> flo
 
 
 def train(args):
+    if args.task not in TASK_MAP:
+        raise SystemExit(
+            f"unknown task {args.task!r}; choose one of {list(TASK_MAP)}"
+        )
+    env_id = TASK_MAP[args.task]
+
     if args.device == "cuda" and not torch.cuda.is_available():
         print("[warn] cuda requested but unavailable, falling back to cpu")
         device = torch.device("cpu")
     else:
         device = torch.device(args.device)
 
-    rng = np.random.default_rng(args.seed)
     torch.manual_seed(args.seed)
 
     # ---- connectome mask ---------------------------------------------------
     sc, region_labels = load_aparc_sc()
     n_regions = sc.shape[0]
-    units_per_region = max(1, args.hidden // n_regions)
-    actual_hidden = n_regions * units_per_region
-    if actual_hidden != args.hidden:
+    if args.hidden != n_regions:
         print(
-            f"[info] adjusted hidden_dim {args.hidden} -> {actual_hidden} "
-            f"({n_regions} regions x {units_per_region} units/region)"
+            f"[info] --hidden {args.hidden} != n_regions {n_regions}; "
+            f"forcing one unit per region (N={n_regions})"
         )
-    mask = expand_sc_to_unit_mask(sc, units_per_region=units_per_region)
+    n_units = n_regions
+    mask = expand_sc_to_unit_mask(sc, units_per_region=1)
     sparsity = 1.0 - mask.mean().item()
-    print(f"[mask] {actual_hidden}x{actual_hidden}, sparsity={sparsity:.2%}")
+    print(f"[mask] {n_units}x{n_units}, sparsity={sparsity:.2%}")
 
     # ---- neurogym dataset --------------------------------------------------
+    # neurogym's env-internal dt is in task-time ms; our CTRNN's dt is the
+    # integration step. They're independent: model sees seq_len timesteps,
+    # each interpreted as args.dt_ms of "brain time" by the dashboard.
     env_kwargs = {"dt": 100}
     dataset = ngym.Dataset(
-        args.task,
+        env_id,
         env_kwargs=env_kwargs,
         batch_size=args.batch_size,
         seq_len=args.seq_len,
@@ -134,7 +127,7 @@ def train(args):
     # ---- model -------------------------------------------------------------
     model = CTRNN(
         input_dim=input_dim,
-        hidden_dim=actual_hidden,
+        hidden_dim=n_units,
         output_dim=output_dim,
         mask=mask,
         dt=args.dt_ms,
@@ -145,10 +138,9 @@ def train(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
-    # ---- training loop -----------------------------------------------------
     print(
-        f"[train] task={args.task} hidden={actual_hidden} obs={input_dim} "
-        f"act={output_dim} device={device}"
+        f"[train] task={args.task} ({env_id}) hidden={n_units} "
+        f"input_dim={input_dim} output_dim={output_dim} device={device}"
     )
     running = 0.0
     for step in range(args.epochs):
@@ -178,62 +170,48 @@ def train(args):
     # ---- bundle export -----------------------------------------------------
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), out_dir / "weights.pt")
+    weights_file = out_dir / f"{args.task}.pt"
+    bundle_file = out_dir / f"{args.task}.json"
 
-    centroids = fibonacci_sphere_centroids(n_regions)
-    unit_positions = assign_unit_positions(
-        centroids, units_per_region, jitter_mm=args.jitter_mm, rng=rng
-    )
-    per_unit_region_labels = [
-        region_labels[i // units_per_region] for i in range(actual_hidden)
-    ]
-
-    # Stretch field for the dashboard: top-K strongest masked recurrent edges.
-    with torch.no_grad():
-        W_eff = model.masked_W().detach().cpu().numpy()
-    nonzero = int((W_eff != 0).sum())
-    top_k = min(args.top_edges, nonzero)
-    flat_idx = np.argsort(np.abs(W_eff).ravel())[::-1][:top_k]
-    rows, cols = np.unravel_index(flat_idx, W_eff.shape)
-    top_edges = [[int(r), int(c), float(W_eff[r, c])] for r, c in zip(rows, cols)]
+    torch.save(model.state_dict(), weights_file)
 
     bundle = {
         "task": args.task,
-        "n_units": actual_hidden,
-        "units_per_region": units_per_region,
-        "region_labels_unique": region_labels,
-        "region_labels": per_unit_region_labels,
-        "unit_positions": unit_positions.round(3).tolist(),
-        "weights_path": "weights.pt",
-        "dt_ms": args.dt_ms,
-        "tau_ms": args.tau_ms,
+        "n_units": n_units,
         "input_dim": input_dim,
         "output_dim": output_dim,
-        "val_acc": val_acc,
-        "top_edges": top_edges,
+        "dt_ms": args.dt_ms,
+        "trial_duration_ms": int(args.seq_len * args.dt_ms),
+        "coupling_alpha_mV_per_Vm": args.coupling_alpha,
+        "weights_path": f"bundles/{args.task}.pt",
     }
-    with open(out_dir / "model_bundle.json", "w") as f:
+    with open(bundle_file, "w") as f:
         json.dump(bundle, f, indent=2)
-    print(f"[done] bundle -> {out_dir}/model_bundle.json")
+    print(f"[done] bundle -> {bundle_file}  weights -> {weights_file}  val_acc={val_acc:.3f}")
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--task", default="PerceptualDecisionMaking-v0")
+    p.add_argument("--task", default="perceptual_decision",
+                   help=f"snake_case task key; one of {list(TASK_MAP)}")
     p.add_argument("--epochs", type=int, default=2000)
-    p.add_argument("--hidden", type=int, default=144)
+    p.add_argument("--hidden", type=int, default=68,
+                   help="forced to n_regions; flag kept for sanity-check warnings")
     p.add_argument("--batch-size", type=int, default=16)
-    p.add_argument("--seq-len", type=int, default=100)
+    p.add_argument("--seq-len", type=int, default=200,
+                   help="timesteps per trial; trial_duration_ms = seq_len * dt_ms")
     p.add_argument("--dt-ms", type=float, default=20.0)
     p.add_argument("--tau-ms", type=float, default=100.0)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--device", default="cuda")
-    p.add_argument("--out", default="ctrnn/bundles/default")
+    p.add_argument("--device", default="cuda",
+                   help="cuda | cpu | mps")
+    p.add_argument("--out", default="ctrnn/bundles",
+                   help="dir holding <task>.json + <task>.pt (flat layout)")
+    p.add_argument("--coupling-alpha", type=float, default=0.1,
+                   help="mV per V/m; written into bundle, applied by infer server")
     p.add_argument("--log-every", type=int, default=100)
     p.add_argument("--eval-batches", type=int, default=20)
-    p.add_argument("--top-edges", type=int, default=512)
-    p.add_argument("--jitter-mm", type=float, default=3.0)
     args = p.parse_args()
     train(args)
 

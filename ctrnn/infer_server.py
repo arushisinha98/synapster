@@ -52,8 +52,8 @@ if str(ROOT) not in sys.path:
 
 import neurogym as ngym  # noqa: E402
 
-from ctrnn.model import CTRNN, expand_sc_to_unit_mask  # noqa: E402
-from ctrnn.train import TASK_MAP, load_aparc_sc  # noqa: E402
+from ctrnn.model import CTRNN  # noqa: E402
+from ctrnn.train import TASK_MAP  # noqa: E402
 
 BUNDLES_DIR = ROOT / "ctrnn" / "bundles"
 CENTROIDS_PATH = BUNDLES_DIR / "aparc_centroids.json"
@@ -183,30 +183,14 @@ def _load_one_task(task: str) -> _LoadedTask:
         bundle = json.load(f)
 
     # ---- Reconstruct the trained CTRNN -----------------------------------
-    # The mask is derived from the cached SC matrix the same way train.py
-    # does it. Identical SC -> identical binary mask -> the masked W_rec
-    # the .pt was trained against.
-    sc, region_labels_from_sc = load_aparc_sc()
-
-    # Region-label sanity: the bundle stores the labels seen at training; the
-    # current SC cache had better produce the same list. If they diverge
-    # (e.g. someone regenerated the cache with a different ENIGMA version),
-    # fail loud rather than silently shuffling units.
-    bundle_labels = bundle.get("region_labels")
-    if bundle_labels is not None and bundle_labels != region_labels_from_sc:
-        raise RuntimeError(
-            f"SC label drift for task {task!r}: bundle's region_labels do not "
-            "match data/aparc_sc.npz. Re-run training or restore the original cache."
-        )
-    # And sanity check against the static centroids file.
-    _validate_centroid_alignment(region_labels_from_sc)
-
-    if len(region_labels_from_sc) != bundle["n_units"]:
-        raise RuntimeError(
-            f"SC has {len(region_labels_from_sc)} regions but bundle expects "
-            f"{bundle['n_units']} units."
-        )
-    mask = expand_sc_to_unit_mask(sc, units_per_region=1)
+    # The mask is registered as a `register_buffer` in CTRNN.__init__ (see
+    # ctrnn/model.py:85), which means it round-trips through state_dict.
+    # We therefore only need a *shape-correct* placeholder at construction
+    # time; load_state_dict() will overwrite it with the trained connectome
+    # mask saved alongside the weights. This avoids requiring data/aparc_sc.npz
+    # (and therefore enigmatoolbox) at deploy time.
+    n_units = bundle["n_units"]
+    mask = torch.ones((n_units, n_units), dtype=torch.float32)
 
     # tau_ms is a schema extension; default to 100 ms (train.py's default)
     # for older bundles and warn so the operator notices.

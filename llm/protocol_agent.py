@@ -80,14 +80,15 @@ def get_protocol(ailment: str) -> dict:
     """
     print(f"[protocol_agent] Querying Claude for ailment: '{ailment}'")
 
-    # Anthropic enforces a 30k input-tokens-per-minute limit on the standard tier;
-    # web_search results get folded back into the input context and burn through it
-    # quickly across consecutive calls. Mitigations:
-    #   1. Cap web_search to a single use per request via `max_uses`.
-    #   2. On 429, retry once without tools — the model knows canonical NIBS
-    #      protocols from training; we lose verified DOIs but still get a sensible
-    #      recommendation rather than a 502 in front of the demo.
-    base_kwargs = dict(
+    # web_search disabled for the demo: even a single search round folds
+    # tens of thousands of input tokens back into the next request, blowing
+    # past Anthropic's 30k input-tokens-per-minute org limit on
+    # claude-sonnet-4-6 and 502'ing the agent for minutes after each call.
+    # The model knows canonical NIBS protocols (DLPFC tDCS for depression,
+    # M1 anodal for motor recovery, theta-tACS for WM, etc.) from training.
+    # We lose live-verified DOIs but every query returns a usable protocol
+    # in ~3-5s with input tokens well under the rate ceiling.
+    response = _client().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1000,
         system=SYSTEM_PROMPT,
@@ -96,25 +97,12 @@ def get_protocol(ailment: str) -> dict:
                 "role": "user",
                 "content": (
                     f"Patient ailment: {ailment}\n\n"
-                    "Search for recent clinical evidence, then return the protocol JSON."
+                    "Return the protocol JSON. Cite real DOIs from your training "
+                    "knowledge — do not fabricate."
                 ),
             }
         ],
     )
-    tools_kwargs = dict(
-        tools=[
-            {
-                "type": "web_search_20250305",
-                "name": "web_search",
-                "max_uses": 1,
-            }
-        ]
-    )
-    try:
-        response = _client().messages.create(**base_kwargs, **tools_kwargs)
-    except anthropic.RateLimitError:
-        print("[protocol_agent] rate-limited with web_search; retrying without tools")
-        response = _client().messages.create(**base_kwargs)
 
     # Extract text blocks from the response (ignore tool_use blocks)
     text_blocks = [

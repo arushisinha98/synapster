@@ -347,7 +347,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7c/f0/21f81892e4ed10f4ec3ef2e7cf8635fb76e7c0907c55d0da66be50094760/farama_notifications-0.0.6-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/8c/44/ae0b556d62ed6a8c6f290435f4764fae9944f6857171b60613ab35f0f1a7/fast_simplification-0.1.13-cp311-abi3-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/4e/eb/c96d64137e29ae17d83ad2552470bafe3a7a915e85434d9942077d7fd011/feedparser-6.0.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ab/b1/eb05a423eb801ab7d0715d6a3b28d92589e30b437052553df19ca2087240/gym-0.26.2.tar.gz
       - pypi: https://files.pythonhosted.org/packages/41/55/55d157aa8693090954fc9639bf27218240517c3bc7afa6e97412da6ebfd9/gym_notices-0.1.0-py3-none-any.whl
@@ -358,7 +357,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/9d/1c/5d43735b2553baae2a5e899dcbcd0670a86930d993184d72ca909bf11c9b/openai-2.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9e/bd/3704a8c3e0942d711c1299ebf7b9091930adae6675d7c8f476a7ce48653c/sgmllib3k-1.0.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/b5/11/87d6d29fb5d237229d67973a6c9e06e048f01cf4994dee194ab0ea841814/tomlkit-0.14.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/05/98/716a473cfb24750858ddd5d14e6527539dd206583a46408d08eeb2844a75/trimesh-4.12.2-py3-none-any.whl
       osx-64:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/_openmp_mutex-4.5-7_kmp_llvm.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/aiohappyeyeballs-2.6.1-pyhd8ed1ab_0.conda
@@ -630,7 +628,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7c/f0/21f81892e4ed10f4ec3ef2e7cf8635fb76e7c0907c55d0da66be50094760/farama_notifications-0.0.6-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/6f/81/ea0026164dd9dbaf6904176dbc716b8361548bbff7c0a273c14e2137ed27/fast_simplification-0.1.13-cp311-abi3-macosx_10_9_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/4e/eb/c96d64137e29ae17d83ad2552470bafe3a7a915e85434d9942077d7fd011/feedparser-6.0.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ab/b1/eb05a423eb801ab7d0715d6a3b28d92589e30b437052553df19ca2087240/gym-0.26.2.tar.gz
       - pypi: https://files.pythonhosted.org/packages/41/55/55d157aa8693090954fc9639bf27218240517c3bc7afa6e97412da6ebfd9/gym_notices-0.1.0-py3-none-any.whl
@@ -641,7 +638,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/9d/1c/5d43735b2553baae2a5e899dcbcd0670a86930d993184d72ca909bf11c9b/openai-2.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9e/bd/3704a8c3e0942d711c1299ebf7b9091930adae6675d7c8f476a7ce48653c/sgmllib3k-1.0.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/b5/11/87d6d29fb5d237229d67973a6c9e06e048f01cf4994dee194ab0ea841814/tomlkit-0.14.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/05/98/716a473cfb24750858ddd5d14e6527539dd206583a46408d08eeb2844a75/trimesh-4.12.2-py3-none-any.whl
       osx-arm64:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/_openmp_mutex-4.5-7_kmp_llvm.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/aiohappyeyeballs-2.6.1-pyhd8ed1ab_0.conda
@@ -913,7 +909,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7c/f0/21f81892e4ed10f4ec3ef2e7cf8635fb76e7c0907c55d0da66be50094760/farama_notifications-0.0.6-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/49/1c/ea8c057ebf02a3b24eddc79619bdc1c844a2354dbdf66176d86750755846/fast_simplification-0.1.13-cp311-abi3-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/4e/eb/c96d64137e29ae17d83ad2552470bafe3a7a915e85434d9942077d7fd011/feedparser-6.0.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ab/b1/eb05a423eb801ab7d0715d6a3b28d92589e30b437052553df19ca2087240/gym-0.26.2.tar.gz
       - pypi: https://files.pythonhosted.org/packages/41/55/55d157aa8693090954fc9639bf27218240517c3bc7afa6e97412da6ebfd9/gym_notices-0.1.0-py3-none-any.whl
@@ -924,7 +919,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/9d/1c/5d43735b2553baae2a5e899dcbcd0670a86930d993184d72ca909bf11c9b/openai-2.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9e/bd/3704a8c3e0942d711c1299ebf7b9091930adae6675d7c8f476a7ce48653c/sgmllib3k-1.0.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/b5/11/87d6d29fb5d237229d67973a6c9e06e048f01cf4994dee194ab0ea841814/tomlkit-0.14.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/05/98/716a473cfb24750858ddd5d14e6527539dd206583a46408d08eeb2844a75/trimesh-4.12.2-py3-none-any.whl
   hpc:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1298,7 +1292,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7c/f0/21f81892e4ed10f4ec3ef2e7cf8635fb76e7c0907c55d0da66be50094760/farama_notifications-0.0.6-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/8c/44/ae0b556d62ed6a8c6f290435f4764fae9944f6857171b60613ab35f0f1a7/fast_simplification-0.1.13-cp311-abi3-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/4e/eb/c96d64137e29ae17d83ad2552470bafe3a7a915e85434d9942077d7fd011/feedparser-6.0.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ab/b1/eb05a423eb801ab7d0715d6a3b28d92589e30b437052553df19ca2087240/gym-0.26.2.tar.gz
       - pypi: https://files.pythonhosted.org/packages/41/55/55d157aa8693090954fc9639bf27218240517c3bc7afa6e97412da6ebfd9/gym_notices-0.1.0-py3-none-any.whl
@@ -1309,7 +1302,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/9d/1c/5d43735b2553baae2a5e899dcbcd0670a86930d993184d72ca909bf11c9b/openai-2.36.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9e/bd/3704a8c3e0942d711c1299ebf7b9091930adae6675d7c8f476a7ce48653c/sgmllib3k-1.0.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/b5/11/87d6d29fb5d237229d67973a6c9e06e048f01cf4994dee194ab0ea841814/tomlkit-0.14.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/05/98/716a473cfb24750858ddd5d14e6527539dd206583a46408d08eeb2844a75/trimesh-4.12.2-py3-none-any.whl
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-7_kmp_llvm.conda
   build_number: 7
@@ -2489,27 +2481,6 @@ packages:
   name: farama-notifications
   version: 0.0.6
   sha256: f84839188efa1ce5bb361c2a84881b2dc2c0d0d7fb661ff00421820170930935
-- pypi: https://files.pythonhosted.org/packages/49/1c/ea8c057ebf02a3b24eddc79619bdc1c844a2354dbdf66176d86750755846/fast_simplification-0.1.13-cp311-abi3-macosx_11_0_arm64.whl
-  name: fast-simplification
-  version: 0.1.13
-  sha256: f3bcd10b5de2a85fe41d4ba27ccdf3adc723c2a0f5a1afb47f01e95c6c158651
-  requires_dist:
-  - numpy
-  requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/6f/81/ea0026164dd9dbaf6904176dbc716b8361548bbff7c0a273c14e2137ed27/fast_simplification-0.1.13-cp311-abi3-macosx_10_9_x86_64.whl
-  name: fast-simplification
-  version: 0.1.13
-  sha256: 4a89d1d0ecbb547528048ab6333bf2287767dbba727fa0553b18a138802d9b61
-  requires_dist:
-  - numpy
-  requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/8c/44/ae0b556d62ed6a8c6f290435f4764fae9944f6857171b60613ab35f0f1a7/fast_simplification-0.1.13-cp311-abi3-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
-  name: fast-simplification
-  version: 0.1.13
-  sha256: c694f0f0bbafbaf29acf7043de603b4c85259f2eae7b802d4946d47976e9959d
-  requires_dist:
-  - numpy
-  requires_python: '>=3.9'
 - conda: https://conda.anaconda.org/conda-forge/noarch/fastapi-0.136.1-h9093a4d_0.conda
   sha256: a760957075438e1e749f97dbf11593e4071a19d590a9d74425abf79754d72c3e
   md5: 4de4a392af60d8d9db2352a7fc8cd5f9
@@ -3443,29 +3414,29 @@ packages:
   - opencv-python>=3.0 ; extra == 'other'
   - matplotlib>=3.0 ; extra == 'other'
   - moviepy>=1.0.0 ; extra == 'other'
-  - swig==4.* ; extra == 'testing'
-  - pygame==2.1.0 ; extra == 'testing'
-  - lz4>=3.1.0 ; extra == 'testing'
-  - matplotlib>=3.0 ; extra == 'testing'
-  - imageio>=2.14.1 ; extra == 'testing'
-  - mujoco-py>=2.1,<2.2 ; extra == 'testing'
-  - opencv-python>=3.0 ; extra == 'testing'
-  - box2d-py==2.3.5 ; extra == 'testing'
-  - moviepy>=1.0.0 ; extra == 'testing'
   - mujoco==2.2 ; extra == 'testing'
+  - mujoco-py>=2.1,<2.2 ; extra == 'testing'
+  - moviepy>=1.0.0 ; extra == 'testing'
+  - lz4>=3.1.0 ; extra == 'testing'
+  - box2d-py==2.3.5 ; extra == 'testing'
+  - imageio>=2.14.1 ; extra == 'testing'
+  - opencv-python>=3.0 ; extra == 'testing'
+  - pygame==2.1.0 ; extra == 'testing'
+  - swig==4.* ; extra == 'testing'
+  - matplotlib>=3.0 ; extra == 'testing'
   - pytest==7.0.1 ; extra == 'testing'
-  - swig==4.* ; extra == 'all'
-  - pytest==7.0.1 ; extra == 'all'
-  - pygame==2.1.0 ; extra == 'all'
-  - lz4>=3.1.0 ; extra == 'all'
-  - matplotlib>=3.0 ; extra == 'all'
-  - imageio>=2.14.1 ; extra == 'all'
-  - mujoco-py>=2.1,<2.2 ; extra == 'all'
-  - opencv-python>=3.0 ; extra == 'all'
-  - ale-py~=0.8.0 ; extra == 'all'
-  - box2d-py==2.3.5 ; extra == 'all'
-  - moviepy>=1.0.0 ; extra == 'all'
   - mujoco==2.2 ; extra == 'all'
+  - pytest==7.0.1 ; extra == 'all'
+  - mujoco-py>=2.1,<2.2 ; extra == 'all'
+  - moviepy>=1.0.0 ; extra == 'all'
+  - lz4>=3.1.0 ; extra == 'all'
+  - box2d-py==2.3.5 ; extra == 'all'
+  - imageio>=2.14.1 ; extra == 'all'
+  - ale-py~=0.8.0 ; extra == 'all'
+  - pygame==2.1.0 ; extra == 'all'
+  - swig==4.* ; extra == 'all'
+  - matplotlib>=3.0 ; extra == 'all'
+  - opencv-python>=3.0 ; extra == 'all'
   requires_python: '>=3.6'
 - pypi: https://files.pythonhosted.org/packages/41/55/55d157aa8693090954fc9639bf27218240517c3bc7afa6e97412da6ebfd9/gym_notices-0.1.0-py3-none-any.whl
   name: gym-notices
@@ -10781,54 +10752,6 @@ packages:
   - pkg:pypi/tqdm?source=hash-mapping
   size: 94132
   timestamp: 1770153424136
-- pypi: https://files.pythonhosted.org/packages/05/98/716a473cfb24750858ddd5d14e6527539dd206583a46408d08eeb2844a75/trimesh-4.12.2-py3-none-any.whl
-  name: trimesh
-  version: 4.12.2
-  sha256: b5b5afa63c5272345f2858f7676bc8c217dc8a89f4fadf6193fe10a81b5ff2aa
-  requires_dist:
-  - numpy>=1.20
-  - colorlog ; extra == 'easy'
-  - manifold3d>=2.3.0 ; python_full_version < '3.14' and extra == 'easy'
-  - charset-normalizer ; extra == 'easy'
-  - lxml ; extra == 'easy'
-  - jsonschema ; extra == 'easy'
-  - networkx ; extra == 'easy'
-  - svg-path ; extra == 'easy'
-  - pycollada<=0.9.0 ; python_full_version < '3.9' and extra == 'easy'
-  - pycollada ; python_full_version >= '3.9' and extra == 'easy'
-  - shapely ; extra == 'easy'
-  - xxhash ; extra == 'easy'
-  - rtree ; extra == 'easy'
-  - httpx ; extra == 'easy'
-  - scipy ; extra == 'easy'
-  - embreex ; extra == 'easy'
-  - pillow ; extra == 'easy'
-  - vhacdx ; python_full_version >= '3.9' and extra == 'easy'
-  - mapbox-earcut>=1.0.2 ; python_full_version >= '3.9' and extra == 'easy'
-  - sympy ; extra == 'recommend'
-  - pyglet<2 ; extra == 'recommend'
-  - scikit-image ; extra == 'recommend'
-  - fast-simplification ; extra == 'recommend'
-  - python-fcl ; extra == 'recommend'
-  - cascadio ; extra == 'recommend'
-  - manifold3d>=2.3.0 ; python_full_version >= '3.14' and extra == 'recommend'
-  - pytest-cov ; extra == 'test'
-  - pytest ; extra == 'test'
-  - pyinstrument ; extra == 'test'
-  - ruff ; extra == 'test'
-  - coveralls ; extra == 'test-more'
-  - ezdxf ; extra == 'test-more'
-  - meshio ; extra == 'test-more'
-  - xatlas ; extra == 'test-more'
-  - pytest-beartype ; python_full_version >= '3.10' and extra == 'test-more'
-  - matplotlib ; extra == 'test-more'
-  - pymeshlab ; python_full_version < '3.14' and extra == 'test-more'
-  - triangle ; python_full_version < '3.14' and extra == 'test-more'
-  - ipython ; extra == 'test-more'
-  - marimo ; extra == 'test-more'
-  - openctm ; extra == 'deprecated'
-  - trimesh[deprecated,easy,recommend,test,test-more] ; extra == 'all'
-  requires_python: '>=3.8'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/triton-3.6.0-cuda129py311h2e1fb5d_1.conda
   sha256: 96c6550451771170bcce00a371d4efec3c5c9777642e88eb61ce2f56828d967b
   md5: f39b0b91627a8e3896988cca1522a24a

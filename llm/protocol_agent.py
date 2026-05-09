@@ -81,7 +81,7 @@ def get_protocol(ailment: str) -> dict:
     print(f"[protocol_agent] Querying Claude for ailment: '{ailment}'")
 
     response = _client().messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=1000,
         system=SYSTEM_PROMPT,
         tools=[

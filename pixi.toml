@@ -1,13 +1,12 @@
 [workspace]
 authors = ["Arushi Sinha <115908316+arushisinha98@users.noreply.github.com>"]
-channels = ["conda-forge", "pytorch"]
+channels = ["conda-forge"]
 name = "synapster"
-platforms = ["osx-arm64"]
+platforms = ["osx-arm64", "linux-64"]
 version = "0.1.0"
 
 [tasks]
-smoke = "python -c \"import torch, neurogym, enigmatoolbox; print('deps ok | torch', torch.__version__, '| mps', torch.backends.mps.is_available())\""
-train = "python ctrnn/train.py"
+smoke = "python -c \"import torch, neurogym, enigmatoolbox; print('deps ok | torch', torch.__version__, '| cuda', torch.cuda.is_available(), '| mps', torch.backends.mps.is_available())\""
 infer = "python ctrnn/infer.py"
 llm = "python llm/protocol_agent.py"
 
@@ -32,3 +31,21 @@ enigmatoolbox = ">=2.0.3"
 anthropic = ">=0.40"
 openai = ">=1.40"
 arxiv = ">=2.1"
+
+# Two envs: `default` (CPU/MPS, used on macOS) and `hpc` (CUDA on linux-64).
+# Run training on the cluster with: pixi run -e hpc python ctrnn/train.py ...
+[feature.cpu.dependencies]
+pytorch = ">=2.2"
+
+[feature.cuda]
+platforms = ["linux-64"]
+
+[feature.cuda.system-requirements]
+cuda = "12"
+
+[feature.cuda.dependencies]
+pytorch-gpu = ">=2.2"
+
+[environments]
+default = { features = ["cpu"], solve-group = "cpu" }
+hpc = { features = ["cuda"], solve-group = "cuda" }

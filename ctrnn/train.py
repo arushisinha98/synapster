@@ -176,6 +176,7 @@ def train(args):
     torch.save(model.state_dict(), weights_file)
 
     bundle = {
+        # ---- README §"Static asset" spec fields (dashboard reads these) ----
         "task": args.task,
         "n_units": n_units,
         "input_dim": input_dim,
@@ -184,6 +185,17 @@ def train(args):
         "trial_duration_ms": int(args.seq_len * args.dt_ms),
         "coupling_alpha_mV_per_Vm": args.coupling_alpha,
         "weights_path": f"bundles/{args.task}.pt",
+        # ---- Schema extensions (server reads these; dashboard ignores) ----
+        # tau_ms: needed to reconstruct the CTRNN with the same membrane time
+        # constant used at training. Without this the server would have to
+        # hardcode a tau and silently break if training ever uses a different
+        # value.
+        "tau_ms": args.tau_ms,
+        # region_labels: ordered list of 68 region names matching unit indices
+        # in weights.pt. The server cross-checks this against the labels in
+        # bundles/aparc_centroids.json at startup to catch index drift between
+        # the cached SC matrix and the static centroids file.
+        "region_labels": region_labels,
     }
     with open(bundle_file, "w") as f:
         json.dump(bundle, f, indent=2)

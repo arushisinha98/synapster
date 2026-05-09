@@ -51,8 +51,9 @@ Run on MBP-2, **two terminals** (or tmux):
 **Terminal 1 — backend:**
 ```bash
 cd ~/path/to/synapster
-# however the teammate started it; e.g.
-uvicorn ctrnn.infer:app --host 0.0.0.0 --port 8000
+export API_PASSWORD="judge-2026"   # MUST match NEXT_PUBLIC_PASSWORD on Vercel
+pixi run uvicorn ctrnn.infer:app --host 0.0.0.0 --port 8000
+# (or: caffeinate -dimsu pixi run uvicorn ctrnn.infer:app --host 0.0.0.0 --port 8000)
 ```
 
 **Terminal 2 — tunnel:**
@@ -63,42 +64,29 @@ cd ~/path/to/synapster
 
 **Verify (from anywhere):**
 ```bash
-curl https://synapster-api.martinlombard.com/tasks
-# should return ["perceptual_decision","working_memory","reaction_time"]
+# Public — no auth, just checks the tunnel + uvicorn are reachable.
+curl https://synapster-api.martinlombard.com/health
+# {"ok":true,"n_bundles":3,"tasks":[...],"auth_configured":true}
+
+# Protected — needs Basic Auth. Username can be anything; password = API_PASSWORD.
+curl -u "synapster:judge-2026" https://synapster-api.martinlombard.com/tasks
+# ["perceptual_decision","working_memory","reaction_time"]
 ```
 
 **Give judges:** the Vercel URL + the access code.
 
 ---
 
-## Backend gotchas (for whoever implements FastAPI)
+## Backend (`ctrnn/infer.py`)
 
-The frontend will hit `https://synapster-api.martinlombard.com/...` from a different origin (Vercel). Three things must be in the FastAPI app or it breaks at runtime:
+The FastAPI app at `ctrnn/infer.py` already wires:
 
-```python
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+- **CORS middleware** — `allow_origins = ALLOWED_ORIGIN` env var, or `*` if unset.
+- **HTTP Basic Auth** on `/tasks`, `/bundle/<task>`, `/infer` via the `API_PASSWORD` env var. Username is ignored — any string works; password must match. Public route: `/health` (for tunnel diagnostics).
+- **ENIGMA pre-warm** at startup so the first `/infer` doesn't block on a first-time SC download.
+- **Bundle discovery** at `ctrnn/bundles/<task>/model_bundle.json` + matching `.pt`. Bundles missing or malformed are skipped with a log line.
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],   # or restrict to the exact Vercel domain
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-
-If you tighten CORS, set `ALLOWED_ORIGIN` in `.env` to the Vercel URL and pass it instead of `["*"]`.
-
-**ENIGMA Toolbox first-call download:** if the inference path calls `load_sc()` or similar, it downloads brain connectivity data on first invocation. Pre-warm at startup so the first judge request doesn't hang:
-
-```python
-@app.on_event("startup")
-def warmup():
-    from enigmatoolbox.datasets import load_sc
-    _ = load_sc()
-```
+The CTRNN crew's only contract is: produce a `model_bundle.json` per task whose `model_kwargs` reconstruct the `CTRNN` from `ctrnn/model.py`, and a forward signature `net(u, stim=stim_mV) -> (rates, output)`. If that signature changes, adjust the call inside `/infer` only.
 
 **`gym==0.21.0` pin** is fragile on a fresh install. If pip refuses, use `pip install gym==0.21.0 --no-deps`.
 
@@ -117,30 +105,26 @@ caffeinate -dimsu uvicorn ctrnn.infer:app --port 8000
 
 ---
 
-## What the password gate actually does
+## Auth model (FE + BE)
 
-`dashboard/config.js` (written at Vercel build time) contains the password. The frontend overlay compares user input against that and unlocks via `sessionStorage`.
+Two layers, both gated by the **same password**:
 
-**This is a visibility gate, not real auth.** Anyone who views page source can read the password. For hackathon judging it's fine; if a stronger bar is needed, add HTTP Basic Auth in FastAPI as well:
+1. **Frontend overlay** (visibility gate) — `dashboard/index.html` JS compares user input against `window.SYNAPSTER_CONFIG.PASSWORD` (set at Vercel build time from `NEXT_PUBLIC_PASSWORD`). Persisted in `sessionStorage`. This stops casual snoopers from seeing the dashboard, but the password is readable in page source — *not* a real security barrier.
+2. **Backend HTTP Basic Auth** — `ctrnn/infer.py` requires `Authorization: Basic <base64(any:API_PASSWORD)>` on every protected route. Even if someone bypasses the frontend, they can't hit `/tasks`, `/bundle/<task>`, or `/infer` without the password.
 
-```python
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-import secrets, os
+**Critical: keep `NEXT_PUBLIC_PASSWORD` (Vercel) and `API_PASSWORD` (MBP-2) in sync.** If they diverge, the frontend will pass through the gate but every backend call will 401.
 
-security = HTTPBasic()
-
-def check(creds: HTTPBasicCredentials = Depends(security)):
-    ok = secrets.compare_digest(creds.password, os.environ["API_PASSWORD"])
-    if not ok:
-        raise HTTPException(401)
-
-# then on every protected route:
-@app.post("/infer", dependencies=[Depends(check)])
-def infer(...): ...
+The dashboard's `fetch` calls must include the header:
+```js
+fetch(`${SYNAPSTER_CONFIG.API_URL}/infer`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Basic ' + btoa(':' + SYNAPSTER_CONFIG.PASSWORD),
+  },
+  body: JSON.stringify({ task, field_per_region }),
+})
 ```
-
-The frontend would need to send `Authorization: Basic <base64(user:pass)>` on each fetch.
 
 ---
 

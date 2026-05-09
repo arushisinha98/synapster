@@ -227,29 +227,35 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       return electrodes.length - 1;
     };
 
+    // Per-region E-field magnitude from each electrode as a point source:
+    //   |E_i| = sum_e amp / (d_ie² + eps²)
+    // Same formula as getStimJson(), normalized to [0,1] for coloring.
+    const FIELD_EPS = 0.05;     // singularity guard (~5mm at this scale)
+    const STIM_THRESHOLD = 0.08; // relative-to-peak cutoff for "stimmed" count
     const recompute = () => {
+      const raw = new Array(N_UNITS).fill(0);
+      let peak = 0;
+      for (let i = 0; i < N_UNITS; i++) {
+        const p = unitPositions[i];
+        let f = 0;
+        for (const e of electrodes) {
+          const dx = p.x - e.point.x, dy = p.y - e.point.y, dz = p.z - e.point.z;
+          const d2 = dx*dx + dy*dy + dz*dz + FIELD_EPS*FIELD_EPS;
+          f += 1.0 / d2;
+        }
+        raw[i] = f;
+        if (f > peak) peak = f;
+      }
       let stimmed = 0;
       let totalStrength = 0;
       for (let i = 0; i < N_UNITS; i++) {
-        const p = unitPositions[i];
-        let strength = 0;
-        for (const e of electrodes) {
-          const d = p.distanceTo(e.point);
-          if (d < STIM_RADIUS) {
-            const s = 1 - d / STIM_RADIUS;
-            strength = Math.max(strength, s);
-          }
-        }
-        if (strength > 0.05) {
+        const strength = peak > 0 ? raw[i] / peak : 0;
+        if (strength > STIM_THRESHOLD) {
           stimmed++;
           totalStrength += strength;
           const c = new THREE.Color(0x5a5e66).lerp(accentCol, Math.min(1, 0.4 + strength * 0.7));
           if (strength > 0.5) c.lerp(accent2Col, (strength - 0.5) * 1.2);
           units.setColorAt(i, c);
-          // grow stimmed units slightly
-          units.getMatrixAt(i, dummy.matrix);
-          dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-          // skip rescaling here; one-shot at place time would compound
         } else {
           units.setColorAt(i, idleCol);
         }
@@ -257,8 +263,8 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
       if (units.instanceColor) units.instanceColor.needsUpdate = true;
       onHud?.({
         stimmed, total: N_UNITS,
-        peakE: 0.0 + electrodes.length * 0.32 + Math.random() * 0.05,
-        focality: electrodes.length === 0 ? 0 : Math.min(1, totalStrength / (electrodes.length * N_UNITS * 0.15)),
+        peakE: peak,
+        focality: N_UNITS === 0 ? 0 : stimmed / N_UNITS,
         electrodes: electrodes.length,
       });
     };

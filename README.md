@@ -2,10 +2,12 @@
 
 **Type a patient's symptoms. Watch an AI design a brain-stimulation
 treatment, citing real medical papers — and then see, region by region,
-exactly what that treatment does inside a model of the brain.**
+exactly what that treatment does inside a model of the brain.** The 
+"brain" is a CTRNN wired by a real human connectome and pre-trained on 
+three cognitive tasks. The "stimulation" is real V/m field physics 
+coupled into the model dynamics.
 
-That's the whole demo. Three minutes start to finish, on a 3D brain
-running in your browser.
+A 3D brain running in your browser.
 
 ---
 

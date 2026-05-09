@@ -1,1 +1,3 @@
-# brainy-rnn
+# synapster
+
+## 

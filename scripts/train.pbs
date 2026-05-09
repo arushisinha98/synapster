@@ -5,10 +5,10 @@
 #PBS -j oe
 #PBS -o logs/
 
-# Submit one task per job:
-#   qsub -v TASK=PerceptualDecisionMaking-v0 scripts/train.pbs
-#   qsub -v TASK=DelayedMatchSample-v0       scripts/train.pbs
-#   qsub -v TASK=ReadySetGo-v0               scripts/train.pbs
+# Submit one task per job (snake_case keys; see TASK_MAP in ctrnn/train.py):
+#   qsub -v TASK=perceptual_decision scripts/train.pbs
+#   qsub -v TASK=working_memory      scripts/train.pbs
+#   qsub -v TASK=reaction_time       scripts/train.pbs
 #
 # Adjust the #PBS resource lines to match your cluster's queue (Imperial CX1
 # uses the syntax above; other PBS clusters may want -q gpu, different ngpus,
@@ -16,19 +16,19 @@
 
 set -euo pipefail
 
-TASK="${TASK:-PerceptualDecisionMaking-v0}"
+TASK="${TASK:-perceptual_decision}"
 EPOCHS="${EPOCHS:-2000}"
-HIDDEN="${HIDDEN:-144}"
 SEED="${SEED:-0}"
 
 cd "${PBS_O_WORKDIR}"
 mkdir -p logs ctrnn/bundles
 
 # ---- environment ---------------------------------------------------------
-# Pixi handles all deps. Install pixi once on the login node:
+# Pixi handles all deps. Install once on the login node:
 #   curl -fsSL https://pixi.sh/install.sh | bash
-# Then `pixi install` on the login node so compute nodes (which usually have
-# no outbound internet) can reuse the resolved env.
+#   CONDA_OVERRIDE_CUDA=12.0 pixi install -e hpc
+# The CONDA_OVERRIDE_CUDA is needed because login nodes typically lack a CUDA
+# driver, so the __cuda virtual package isn't auto-detected.
 export PATH="$HOME/.pixi/bin:$PATH"
 
 # Some clusters require an explicit CUDA module load even when conda ships its
@@ -43,7 +43,6 @@ pixi run -e hpc python -c "import torch; assert torch.cuda.is_available(), 'no C
 pixi run -e hpc python ctrnn/train.py \
     --task "${TASK}" \
     --epochs "${EPOCHS}" \
-    --hidden "${HIDDEN}" \
     --seed "${SEED}" \
     --device cuda \
-    --out "ctrnn/bundles/${TASK}"
+    --out ctrnn/bundles

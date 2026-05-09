@@ -1,0 +1,10 @@
+{
+  "task": "perceptual_decision",
+  "n_units": 68,
+  "input_dim": 3,
+  "output_dim": 3,
+  "dt_ms": 20.0,
+  "trial_duration_ms": 4000,
+  "coupling_alpha_mV_per_Vm": 0.1,
+  "weights_path": "bundles/perceptual_decision.pt"
+}

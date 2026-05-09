@@ -25,6 +25,9 @@ python-dotenv = ">=1.0"
 fastapi = ">=0.110"
 uvicorn = ">=0.29"
 pydantic = ">=2.6"
+pandas = ">=3.0.2,<4"
+vtk = ">=9.6.1,<10"
+scikit-learn = ">=1.8.0,<2"
 
 [pypi-dependencies]
 neurogym = ">=2.0"

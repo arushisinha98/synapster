@@ -223,3 +223,12 @@ Separate `dashboard/` Vite app (not yet scaffolded). At load: fetches `/tasks` a
 ## Hack rule
 
 Strict no-prior-work policy: every line written in the hack window. No copying from previous repos.
+
+## Enigma
+```bash
+pixi shell
+git clone https://github.com/MICA-MNI/ENIGMA.git
+cd ENIGMA
+python setup.py install
+exit
+```

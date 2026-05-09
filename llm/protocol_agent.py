@@ -80,16 +80,17 @@ def get_protocol(ailment: str) -> dict:
     """
     print(f"[protocol_agent] Querying Claude for ailment: '{ailment}'")
 
-    response = _client().messages.create(
+    # Anthropic enforces a 30k input-tokens-per-minute limit on the standard tier;
+    # web_search results get folded back into the input context and burn through it
+    # quickly across consecutive calls. Mitigations:
+    #   1. Cap web_search to a single use per request via `max_uses`.
+    #   2. On 429, retry once without tools — the model knows canonical NIBS
+    #      protocols from training; we lose verified DOIs but still get a sensible
+    #      recommendation rather than a 502 in front of the demo.
+    base_kwargs = dict(
         model="claude-sonnet-4-6",
         max_tokens=1000,
         system=SYSTEM_PROMPT,
-        tools=[
-            {
-                "type": "web_search_20250305",
-                "name": "web_search",
-            }
-        ],
         messages=[
             {
                 "role": "user",
@@ -100,6 +101,20 @@ def get_protocol(ailment: str) -> dict:
             }
         ],
     )
+    tools_kwargs = dict(
+        tools=[
+            {
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": 1,
+            }
+        ]
+    )
+    try:
+        response = _client().messages.create(**base_kwargs, **tools_kwargs)
+    except anthropic.RateLimitError:
+        print("[protocol_agent] rate-limited with web_search; retrying without tools")
+        response = _client().messages.create(**base_kwargs)
 
     # Extract text blocks from the response (ignore tool_use blocks)
     text_blocks = [

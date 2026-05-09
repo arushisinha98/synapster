@@ -6,8 +6,11 @@ platforms = ["osx-arm64", "osx-64", "linux-64"]
 version = "0.1.0"
 
 [tasks]
-smoke = "python -c \"import torch, neurogym, enigmatoolbox; print('deps ok | torch', torch.__version__, '| cuda', torch.cuda.is_available(), '| mps', torch.backends.mps.is_available())\""
-infer = "python ctrnn/infer.py"
+# `enigmatoolbox` is intentionally NOT in the smoke test — it's only needed
+# for one-time setup (scripts/setup_data.py and scripts/generate_centroids.py)
+# and not at training/inference time.
+smoke = "python -c \"import torch, neurogym; print('deps ok | torch', torch.__version__, '| cuda', torch.cuda.is_available(), '| mps', torch.backends.mps.is_available())\""
+serve = "python ctrnn/infer_server.py"
 llm = "python llm/protocol_agent.py"
 preprocess-brain = "python dashboard/scripts/preprocess_brain.py"
 test-aparc = "python dashboard/scripts/test_aparc_inside.py"

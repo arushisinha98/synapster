@@ -58,7 +58,7 @@ def verify_neurogym() -> None:
 
     for task in [
         "PerceptualDecisionMaking-v0",
-        "DelayedMatchSample-v0",
+        "DelayMatchSample-v0",
         "ReadySetGo-v0",
     ]:
         ds = ngym.Dataset(task, env_kwargs={"dt": 100}, batch_size=2, seq_len=10)

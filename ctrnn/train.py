@@ -40,7 +40,7 @@ from ctrnn.model import CTRNN, expand_sc_to_unit_mask  # noqa: E402
 # inference server should import this dict too.
 TASK_MAP = {
     "perceptual_decision": "PerceptualDecisionMaking-v0",
-    "working_memory":      "DelayedMatchSample-v0",
+    "working_memory":      "DelayMatchSample-v0",
     "reaction_time":       "ReadySetGo-v0",
 }
 
@@ -98,7 +98,7 @@ def train(args):
 
     # ---- connectome mask ---------------------------------------------------
     sc, region_labels = load_aparc_sc()
-    n_regions = sc.shape[0]
+    n_regions = int(sc.shape[0])
     if args.hidden != n_regions:
         print(
             f"[info] --hidden {args.hidden} != n_regions {n_regions}; "
@@ -121,8 +121,8 @@ def train(args):
         seq_len=args.seq_len,
     )
     env = dataset.env
-    input_dim = env.observation_space.shape[0]
-    output_dim = env.action_space.n
+    input_dim = int(env.observation_space.shape[0])
+    output_dim = int(env.action_space.n)
 
     # ---- model -------------------------------------------------------------
     model = CTRNN(

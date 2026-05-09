@@ -4,7 +4,7 @@
 // NEXT_PUBLIC_PASSWORD env vars). Locally, dashboard/config.js holds the
 // committed defaults: API_URL = http://localhost:8000, PASSWORD = "" (gate off).
 //
-// Username is ignored server-side; we send "synapster" as a stable label.
+// Username is ignored server-side; we send "judge" as a stable label.
 
 (function () {
   const cfg = () => window.SYNAPSTER_CONFIG || {};
@@ -14,7 +14,7 @@
   const authHeader = () => {
     const pw = cfg().PASSWORD || '';
     if (!pw) return {};
-    return { 'Authorization': 'Basic ' + btoa('synapster:' + pw) };
+    return { 'Authorization': 'Basic ' + btoa('judge:' + pw) };
   };
 
   async function apiFetch(path, opts = {}) {

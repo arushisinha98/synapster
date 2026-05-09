@@ -1,5 +1,7 @@
 # Synapster — what we built
 
+![sim-screenshot](imgs/simulation-screenshot.png)
+
 A live tool for designing personalized brain stimulation protocols.
 Type a patient ailment, and an LLM agent reads papers, places electrodes
 on a 3D brain, runs a simulation, and refines until it converges on a

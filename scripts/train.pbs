@@ -1,0 +1,49 @@
+#!/bin/bash
+#PBS -N synapster_train
+#PBS -l select=1:ncpus=8:mem=32gb:ngpus=1
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o logs/
+
+# Submit one task per job:
+#   qsub -v TASK=PerceptualDecisionMaking-v0 scripts/train.pbs
+#   qsub -v TASK=DelayedMatchSample-v0       scripts/train.pbs
+#   qsub -v TASK=ReadySetGo-v0               scripts/train.pbs
+#
+# Adjust the #PBS resource lines to match your cluster's queue (Imperial CX1
+# uses the syntax above; other PBS clusters may want -q gpu, different ngpus,
+# etc.).
+
+set -euo pipefail
+
+TASK="${TASK:-PerceptualDecisionMaking-v0}"
+EPOCHS="${EPOCHS:-2000}"
+HIDDEN="${HIDDEN:-144}"
+SEED="${SEED:-0}"
+
+cd "${PBS_O_WORKDIR}"
+mkdir -p logs ctrnn/bundles
+
+# ---- environment ---------------------------------------------------------
+# Pixi handles all deps. Install pixi once on the login node:
+#   curl -fsSL https://pixi.sh/install.sh | bash
+# Then `pixi install` on the login node so compute nodes (which usually have
+# no outbound internet) can reuse the resolved env.
+export PATH="$HOME/.pixi/bin:$PATH"
+
+# Some clusters require an explicit CUDA module load even when conda ships its
+# own libs. Uncomment and edit if `torch.cuda.is_available()` returns False.
+# module load cuda/12.1
+
+# ---- sanity check --------------------------------------------------------
+pixi run -e hpc python -c "import torch; assert torch.cuda.is_available(), 'no CUDA'; \
+    print('cuda', torch.version.cuda, '|', torch.cuda.get_device_name(0))"
+
+# ---- train ---------------------------------------------------------------
+pixi run -e hpc python ctrnn/train.py \
+    --task "${TASK}" \
+    --epochs "${EPOCHS}" \
+    --hidden "${HIDDEN}" \
+    --seed "${SEED}" \
+    --device cuda \
+    --out "ctrnn/bundles/${TASK}"

@@ -4,7 +4,8 @@
 
 *password:* **operators&friends**
 
-![sim-screenshot](imgs/simulation-screenshot.png)
+
+![simulation video](imgs/demo.gif)
 
 **Type a patient's symptoms. Watch an AI design a brain-stimulation
 treatment, citing real medical papers — and then see, region by region,

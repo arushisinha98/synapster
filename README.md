@@ -1,5 +1,8 @@
 # Synapster
 
+**https://synapster-two.vercel.app**
+*password:* **operators&friends**
+
 **Type a patient's symptoms. Watch an AI design a brain-stimulation
 treatment, citing real medical papers — and then see, region by region,
 exactly what that treatment does inside a model of the brain.** The 

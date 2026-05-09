@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CTRNN-Viewer · hi-fi prototype</title>
+<link rel="stylesheet" href="hifi.css" />
+<style>
+.auth-gate {
+  position: fixed; inset: 0; z-index: 99999;
+  background: #0d0e10; color: #d8d8d8;
+  font-family: -apple-system, system-ui, "Segoe UI", monospace;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+}
+.auth-gate.hidden { display: none; }
+.auth-gate-title { font-size: 32px; letter-spacing: 8px; color: #e85a3c; margin-bottom: 4px; }
+.auth-gate-sub { color: #6b6b6b; font-size: 13px; margin-bottom: 32px; letter-spacing: 1px; }
+.auth-gate-form { display: flex; gap: 8px; }
+.auth-gate-input { background: #18191c; border: 1px solid #2a2b2f; color: #fff; padding: 10px 14px; font-size: 14px; font-family: monospace; width: 220px; border-radius: 4px; outline: none; }
+.auth-gate-input:focus { border-color: #e85a3c; }
+.auth-gate-btn { background: #e85a3c; border: 0; color: #fff; padding: 10px 18px; font-size: 14px; cursor: pointer; border-radius: 4px; font-weight: 600; letter-spacing: 1px; }
+.auth-gate-btn:hover { background: #d04d31; }
+.auth-gate-error { color: #ff6b6b; font-size: 12px; margin-top: 12px; min-height: 16px; }
+</style>
+</head>
+<body>
+
+<div id="auth-gate" class="auth-gate hidden">
+  <div class="auth-gate-title">SYNAPSTER</div>
+  <div class="auth-gate-sub">judges access only</div>
+  <form class="auth-gate-form" id="auth-gate-form">
+    <input class="auth-gate-input" type="password" id="auth-gate-input" autofocus required placeholder="access code" autocomplete="off" />
+    <button class="auth-gate-btn" type="submit">Enter</button>
+  </form>
+  <div class="auth-gate-error" id="auth-gate-error"></div>
+</div>
+
+<div id="root"></div>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  var KEY = 'synapster_authed';
+  var cfg = window.SYNAPSTER_CONFIG || {};
+  var expected = cfg.PASSWORD || '';
+  var gate = document.getElementById('auth-gate');
+
+  if (!expected) return;
+  if (sessionStorage.getItem(KEY) === expected) return;
+
+  gate.classList.remove('hidden');
+  document.getElementById('auth-gate-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = document.getElementById('auth-gate-input').value;
+    if (v === expected) {
+      sessionStorage.setItem(KEY, v);
+      gate.classList.add('hidden');
+    } else {
+      document.getElementById('auth-gate-error').textContent = 'wrong access code';
+    }
+  });
+})();
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+
+<script src="data/aparc_centroids.js"></script>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="hifi-brain.jsx"></script>
+<script type="text/babel" src="hifi-app.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "red"
+}/*EDITMODE-END*/;
+
+function Root() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  return (
+    <>
+      <HifiApp />
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="theme">
+          <TweakColor label="stim accent" value={t.accent}
+            options={[
+              ['#e85a3c','#f2b04a','#5ba3ff'],
+              ['#5ba3ff','#9d6dff','#f2b04a'],
+              ['#4ec9a4','#f2b04a','#5ba3ff'],
+            ]}
+            onChange={v => setTweak('accent', v)} />
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
+</script>
+</body>
+</html>

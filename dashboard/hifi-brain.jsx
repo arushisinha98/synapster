@@ -395,6 +395,48 @@ const HifiBrainViewport = forwardRef(({ onHud, accent = '#e85a3c', accent2 = '#f
         seed1(-0.85, 0.05, 'T7');
         seed1( 0.85, 0.05, 'T8');
       },
+      applyProtocol(protocolElectrodes) {
+        // protocolElectrodes: [{pos:[x,y,z] in MNI mm, current_mA, freq_Hz}, ...]
+        // Clear existing, then place each on the cortex via a downward
+        // raycast from outside-toward-origin (same convention as seed1).
+        while (electrodesGroup.children.length) {
+          const c = electrodesGroup.children[0];
+          electrodesGroup.remove(c);
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) c.material.dispose();
+        }
+        electrodes.length = 0;
+        if (!Array.isArray(protocolElectrodes) || !protocolElectrodes.length) {
+          recompute();
+          return;
+        }
+        for (let idx = 0; idx < protocolElectrodes.length; idx++) {
+          const e = protocolElectrodes[idx];
+          if (!Array.isArray(e?.pos) || e.pos.length !== 3) continue;
+          const [mx, my, mz] = e.pos;
+          // MNI -> mesh: same (x, z, y) * MNI_SCALE swap as aparc placement.
+          const target = new THREE.Vector3(mx * MNI_SCALE, mz * MNI_SCALE, my * MNI_SCALE);
+          // Raycast from outside the brain toward origin to land on cortex.
+          const dir = target.clone();
+          if (dir.lengthSq() < 1e-6) {
+            // Pos at origin — no preferred direction; skip rather than guessing.
+            continue;
+          }
+          dir.normalize();
+          const start = dir.clone().multiplyScalar(3);
+          const ray = new THREE.Raycaster(start, dir.clone().negate());
+          const hits = ray.intersectObject(cortex);
+          if (hits[0]) {
+            const n = hits[0].face.normal.clone()
+              .applyMatrix3(new THREE.Matrix3().getNormalMatrix(cortex.matrixWorld))
+              .normalize();
+            placeElectrode(hits[0].point, n, `E${idx + 1}`);
+          } else {
+            // Fallback: place at the target with a radial outward normal.
+            placeElectrode(target, dir.clone(), `E${idx + 1}`);
+          }
+        }
+      },
       setCortexOpacity(v) {
         v = Math.max(0, Math.min(1, v));
         if (cortexUniforms && cortexUniforms.uOpacityCenter) {

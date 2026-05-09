@@ -219,3 +219,5 @@ __marimo__/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+ENIGMA/

@@ -1,234 +1,213 @@
-# synapster
+# Synapster — what we built
 
-London hackathon project. 4 people, 3 hours.
+A live tool for designing personalized brain stimulation protocols.
+Type a patient ailment, and an LLM agent reads papers, places electrodes
+on a 3D brain, runs a simulation, and refines until it converges on a
+protocol. The "brain" is a CTRNN wired by a real human connectome and
+pre-trained on three cognitive tasks. The "stimulation" is real V/m
+field physics coupled into the model dynamics. The LLM acts through
+tools, not freeform text.
 
-A dashboard for designing brain stimulation protocols (tDCS / tACS / TI) on a 3D brain, with a spatially embedded CTRNN inside, and an LLM side panel that proposes protocols from a patient ailment description.
+## The story
 
-Research foundation in [`docs/`](docs): seRNN ([`spatial-neuro-rnn.md`](docs/spatial-neuro-rnn.md)), multi-task cognitive networks ([`cognitive-tasks.md`](docs/cognitive-tasks.md)), digital twin brain from connectomes ([`digital-twin-brain.md`](docs/digital-twin-brain.md)), multiregion neocortex theory ([`multiregion-neurocortex.md`](docs/multiregion-neurocortex.md)), RL-driven closed-loop stim ([`rl-stimulation.md`](docs/rl-stimulation.md)), and virtual brain twins for epilepsy with TI ([`virtual-brain-epilepsy.md`](docs/virtual-brain-epilepsy.md)).
+Three things that don't usually live in the same room:
 
-## Team split
+### 1. Computational neuroscience that's actually neuroscience
 
-- **CTRNN crew (2):** spatially embedded CTRNNs on neurogym tasks; export model bundles + run the inference backend.
-- **Dashboard (1, Martin):** Vite + React + react-three-fiber. 3D brain, electrode placement, stim physics, RNN unit activity playback.
-- **LLM loop (1):** side-panel agent that takes a patient ailment, reads papers, places electrodes via MCP, runs simulations.
+A 68-region continuous-time recurrent neural network. One unit per
+cortical region in the Desikan–Killiany parcellation. Recurrent
+connectivity is masked by the ENIGMA Toolbox structural connectome —
+signal can only flow where real human white-matter tracts exist.
+Trained on three neurogym cognitive tasks (perceptual decision,
+working memory, reaction time) and task-switchable from the dashboard.
+
+This isn't a generic RNN with a "brain" sticker. It's a CTRNN whose
+graph is the HCP-derived structural matrix, whose unit positions are
+fsaverage5 vertex centroids in MNI mm, and whose dynamics follow the
+seRNN / multi-region neocortex literature.
+
+### 2. Stimulation physics, no fudge
+
+Real scalp electrodes inject current; what reaches cortex is a vector
+electric field (V/m). The dashboard computes |E(r,t)| per region using
+the actual modality physics:
+
+- **tDCS** — constant point-source falloff: `|E| = k · I / r²`
+- **tACS** — oscillatory: `|E(t)| = k · I / r² · sin(2πft)`
+- **TI** — amplitude-modulated envelope `|A₁sin(2πf₁t) + A₂sin(2πf₂t)|`,
+  emerging only where the two carrier fields overlap
+
+The field is converted to a membrane perturbation via
+`α ≈ 0.1 mV/(V/m)` (the empirical pyramidal-cell coupling) and added
+at each unit's input — never to the weights. Stim is a *drive*, not a
+*retraining*. The membrane time constant naturally low-passes
+oscillating fields, which is also the right physics.
+
+### 3. A tool-using LLM agent that operates the simulator
+
+The side panel takes a patient ailment in plain English. The LLM does
+not just emit a JSON blob and stop. It iteratively builds a protocol
+by calling MCP tools:
+
+```
+search_papers(query)            → titles, abstracts, dois
+get_region_coords(region)       → MNI mm
+place_electrode(...)            → updates the dashboard live
+run_simulation()                → activations from /infer
+get_current_protocol()          → state inspection
+```
+
+The dashboard mirrors every tool call as it happens. The agent runs
+the simulator it's writing for, sees the activations, and revises.
+That's the actual scientific loop, not a one-shot.
+
+## What's innovative
+
+- **Closed-loop AI for medicine.** Most "AI for healthcare" demos are
+  one-shot prompt → answer. Synapster is iterative: the agent perceives
+  the simulation it just commissioned and adjusts.
+
+- **Stim as input, not as retraining.** The CTRNN is fixed; protocols
+  modulate dynamics through the same input pathway as task drive.
+  Means arbitrary protocols can be tested in milliseconds against a
+  *single* trained brain, and closed-loop optimization becomes
+  tractable.
+
+- **Anatomically and physically grounded.** No invented coordinates,
+  no waved-away coupling constant, no abstract "stim parameter" knob.
+  V/m, mV, MNI mm, region labels from FreeSurfer, connectivity from
+  HCP. Every number traces back to a published source.
+
+- **Honest about its limits.** The membrane time constant low-passes
+  high-frequency stim — so we tell you above ~25 Hz the model can't
+  resolve the field. The TI carriers can't be sampled directly at
+  20 ms — so we ship the analytic envelope. We don't hide the floor;
+  we draw it.
+
+## Real-world application
+
+The shortest pitch: **AI-assisted protocol design for non-invasive
+neuromodulation.**
+
+Concretely:
+
+- **Treatment-resistant depression.** Canonical tDCS-dlPFC indication.
+  LLM walks through the literature, places anode/cathode, runs sim,
+  shows you the cortical reach of the field and the network's
+  response.
+- **Pre-clinical screening.** Investigators design protocols on a
+  digital twin before any human trial, exposing off-target activation
+  or unexpected coupling.
+- **Personalized stimulation.** Substitute a patient-specific
+  connectome from diffusion MRI and the same loop becomes a
+  per-patient protocol designer. The architecture doesn't change —
+  only the structural matrix.
+- **Education.** Neuro residents, BME students, and clinical
+  researchers manipulate the same physics-grounded toy that a serious
+  modeling pipeline would.
+
+This is "AI agents do real things in the world": the LLM is not
+generating prose *about* brain stimulation, it is *operating* a brain
+stimulation simulator.
+
+## Architecture
+
+```
+[ user types ailment ]
+        ↓
+[ LLM agent ] ←─ MCP tools ─→ [ 3D brain dashboard ]
+        ↓                              ↓
+   place_electrode             physics.ts: V/m, T × 68
+   run_simulation                       ↓
+        ↓                       POST /infer
+[ FastAPI infer_server ] ─ coupling α → [ CTRNN, 68 units, connectome-masked ]
+        ↓
+[ activations T × 68, task_output T × output_dim ]
+        ↓
+[ dashboard plays back: nodes color-cycle, behaviour readout updates ]
+```
+
+## Status
+
+| Component | State |
+|---|---|
+| CTRNN with connectome mask + stim-as-input | built |
+| Pre-trained bundles for all three tasks | built (`ctrnn/bundles/*.{json,pt}`) |
+| FastAPI inference server (`/tasks`, `/bundle/<task>`, `/infer`) | built |
+| Per-region MNI centroids from ENIGMA fsaverage5 | built (`ctrnn/bundles/aparc_centroids.json`) |
+| Stim physics: tDCS / tACS / TI envelopes | dashboard side |
+| 3D brain rendering, electrode placement | dashboard side |
+| LLM agent + MCP tools | `llm/protocol_agent.py` |
+| HPC training pipeline (PBS, CUDA env) | built |
+| Patient-specific connectome injection | future work |
+| Multi-region cross-task coupling | future work |
+
+## Hack window
+
+3 hours. 4 people. Every line written in the room.
 
 ---
 
-## How the RNN fits the dashboard (integration contract)
+# Screenshots to take
 
-This is the single most important thing to get right. Read carefully.
+In rough order of "first thing people see" to "and here's the depth":
 
-### Spatial model
+1. **Hero shot.** Three-quarter view of the 3D brain, all 68 region
+   nodes lit at low intensity, two electrodes visible on the scalp
+   (anode + cathode), faint field falloff rendered on the cortical
+   surface. This is the "what is this thing" image — make sure both
+   hemispheres are visible.
 
-- **68 aparc regions** (Desikan–Killiany, ENIGMA Toolbox).
-- **One CTRNN unit per region.** N = 68. Simple, interpretable, fast.
-- Unit `i` lives at the MNI centroid of region `i`. Both the CTRNN and the dashboard share the same length-68 ordering, defined once in `bundles/aparc_centroids.json`.
+2. **LLM in motion.** Side panel showing a patient ailment input
+   ("treatment-resistant depression, 47y, prior failed SSRI") and the
+   agent's tool calls scrolling: `search_papers(...)`,
+   `place_electrode(dlPFC, 2.0 mA, anode)`, `run_simulation()`,
+   `→ rationale`. Capture the exact frame where a tool call lands and
+   the dashboard updates an electrode position. This is the agentic-AI
+   money shot.
 
-### Stim physics — what the field actually is
+3. **Field physics overlay.** Same brain, mid-tACS animation, V/m
+   field shown as a translucent gradient on the cortical surface. Looks
+   like a real neuro figure and tells the audience "they did the
+   physics."
 
-Scalp electrodes inject current; what reaches the cortex is an **electric field** (V/m). A neuron in that field experiences a small membrane voltage offset (~0.1–0.2 mV per V/m for pyramidal cells aligned with the field). So the physically honest perturbation is **field magnitude**, not "current into a unit".
+4. **Activation playback strip.** Three frames from a working-memory
+   trial under stim, units cycling colour as the network encodes,
+   maintains, and decodes. Lay out as a film strip with timestamps.
 
-**The dashboard owns the physics.** For each electrode the dashboard knows position, current, modality, frequency. It computes the per-region E-field magnitude over time:
+5. **No-stim vs stim side-by-side.** Same trial, two activation strips
+   stacked, with a one-line caption: *tDCS @ dlPFC, 2 mA, anode left*.
+   Quantifies "the stimulation is doing something."
 
-- **tDCS:** point source, `|E(r)| = k · I / r²`, constant in time.
-- **tACS:** same falloff, `|E(r, t)| = k · I / r² · sin(2π f t)`.
-- **TI:** two AC sources at `f1`, `f2`. The amplitude-modulated envelope at `|f1 − f2|` only emerges where both fields overlap. Compute as `|E(r, t)| = |A1·sin(2π f1 t) + A2·sin(2π f2 t)|` per region.
+6. **Network topology.** Brain with the top-K strongest recurrent
+   connections rendered as glowing edges between region nodes. The "wow
+   it's a graph in 3D" image. Bonus if you can colour edges by weight
+   sign.
 
-The dashboard ships the resulting **`field_per_region`** trace (V/m, shape T × 68) to the backend. The backend converts to membrane perturbation with a fixed coupling constant `α ≈ 0.1 mV / (V/m)` and adds it as an input current term in the CTRNN dynamics:
+7. **Task switcher.** Dropdown open showing the three tasks
+   (`perceptual_decision`, `working_memory`, `reaction_time`).
+   Reinforces "this is a cognitive testbed, not a toy."
 
-```
-τ · dx_i/dt = -x_i + Σ_j W_ij · r(x_j) + W_in · u(t) + α · field_i(t) + b_i
-```
+8. **Architecture diagram.** Clean redraw of the box-arrow flow above.
+   People skim and understand the loop in five seconds. This is the
+   slide-deck image.
 
-Stim enters at the **input** of each unit — never modulates the weights. The membrane time constant τ naturally low-passes oscillating fields, which is also the right physics.
+9. **The bundle contract.** A `model_bundle.json` snippet next to a
+   diff of the API contract. Optional but powerful for technical
+   audiences — shows there's a real engineering interface, not duct
+   tape.
 
-### Static asset (dashboard reads at app load)
+10. **The dynamics equation in code.** The line where
+    `α · field_i(t)` enters the integration step, alongside the comment
+    explaining why stim is a drive and not a weight perturbation.
+    Demonstrates the science.
 
-`bundles/aparc_centroids.json` — shared across all tasks, regions don't change:
-```json
-{
-  "n_regions": 68,
-  "labels": ["L_bankssts", "L_caudalanteriorcingulate", ..., "R_insula"],
-  "positions": [[-50.2, -33.1, 5.6], ...]
-}
-```
+## Recommended ordering for a deck or post
 
-`bundles/<task>.json` — one per pretrained CTRNN. Dashboard reads metadata only; never opens the `.pt`:
-```json
-{
-  "task": "working_memory",
-  "n_units": 68,
-  "input_dim": 3,
-  "output_dim": 2,
-  "dt_ms": 20,
-  "trial_duration_ms": 4000,
-  "coupling_alpha_mV_per_Vm": 0.1,
-  "weights_path": "bundles/working_memory.pt"
-}
-```
-
-### API (FastAPI on `localhost:8000`)
-
-```
-GET  /tasks
-  → ["perceptual_decision", "working_memory", "reaction_time"]
-
-GET  /bundle/<task>
-  → contents of bundles/<task>.json
-
-POST /infer
-  body:
-  {
-    "task": "working_memory",
-    "field_per_region": [[f0_t0, ..., f67_t0], ..., [f0_tT, ..., f67_tT]],
-    "input_stimulus": [[...], ...]   // optional, T x input_dim; defaults to a canned trial
-  }
-  →
-  {
-    "activations": [[a0_t0, ..., a67_t0], ...],   // T x 68, post-activation rates
-    "task_output": [[...], ...],                   // T x output_dim, the model's behavioural readout
-    "dt_ms": 20
-  }
-```
-
-Units of `field_per_region` are V/m. Backend multiplies by `coupling_alpha_mV_per_Vm` internally.
-
-### Tasks dropdown
-
-| Task slot       | neurogym env                  |
-| --------------- | ----------------------------- |
-| Attention       | `PerceptualDecisionMaking-v0` |
-| Working memory  | `DelayedMatchSample-v0`       |
-| Reaction time   | `ReadySetGo-v0`               |
-
-Backend loads all three `.pt` files at startup and switches on `task` field.
-
----
-
-## LLM side panel — electrode-placement MCP
-
-The LLM doesn't just *return* a protocol JSON. It *iteratively builds* one by calling tools while it researches papers. We expose those as an **MCP server** (`llm/mcp_server.py`) the LLM agent talks to:
-
-```
-search_papers(query)            → list of {title, abstract, doi}
-get_region_coords(region)       → {pos: [x,y,z], label: "dlPFC"}
-place_electrode(region | pos, current_mA, modality, freq_Hz, freq2_Hz?)
-clear_electrodes()
-run_simulation()                → summary stats from /infer
-get_current_protocol()          → current electrode list
-```
-
-When the LLM calls `place_electrode`, the MCP server pushes the update to the dashboard via WebSocket (or simple polling — pick whatever ships fastest). Demo flow: user types "treatment-resistant depression" → LLM searches papers → places electrodes on dlPFC → runs sim → adjusts placement → returns final rationale.
-
-For 3hr scope the MCP can be bare-bones (a single `tools/list` + `tools/call` endpoint). Use the official MCP Python SDK or roll a thin HTTP shim — the LLM agent doesn't care which.
-
----
-
-## Connectome / parcellation
-
-ENIGMA Toolbox structural connectivity, **`aparc`** (68 cortical regions). Used for the CTRNN's recurrent weight mask only — the spatial viz uses centroids, the dynamics use the connectivity.
-
-```python
-from enigmatoolbox.datasets import load_sc
-sc, labels, _, _ = load_sc(parcellation='aparc')
-# binarize sc -> recurrent mask, multiplied with W in forward pass
-```
-
-Centroid coordinates: hardcode the 68 MNI centroids into `bundles/aparc_centroids.json` (publicly known). Don't fetch at runtime.
-
----
-
-## Setup
-
-We use [pixi](https://pixi.sh) (already configured in `pixi.toml`). On macOS:
-
-```bash
-curl -fsSL https://pixi.sh/install.sh | bash
-pixi install
-pixi shell
-```
-
-Smoke-test:
-```bash
-pixi run smoke
-```
-
-### Setup gotchas
-
-- **`gym==0.21.0` pin is fragile.** neurogym needs old gym (not gymnasium). If pixi can't resolve the wheel on a fresh Python, try `pip install gym==0.21.0 --no-deps` inside `pixi shell`, then re-run.
-- **`nn4n` is intentionally not in deps.** It's not on PyPI and the integration cost isn't worth it for 3hrs. Roll a clean torch CTRNN with a connectome mask in ~50 lines. If you really want it: `pip install git+https://github.com/zhaoyuelu/nn4n.git`.
-- **ENIGMA toolbox** may require a one-time data fetch on first `load_sc` call — see https://enigma-toolbox.readthedocs.io.
-
----
-
-## Workflows
-
-### CTRNN crew
-
-1. Build a CTRNN with N=68 units, recurrent weight mask from ENIGMA aparc structural connectivity. Dale's law optional.
-2. Train on each of the three neurogym tasks. Target: > 70% accuracy.
-3. Export `bundles/<task>.json` + `bundles/<task>.pt` per task.
-4. Run `infer_server.py` — FastAPI on `localhost:8000` exposing `/tasks`, `/bundle/<task>`, `/infer`. Loads all three `.pt` files at startup.
-5. Stim enters the dynamics as `α · field_i(t)` added to the input of unit `i`. Do NOT modify the recurrent matrix.
-
-### LLM loop
-
-1. Start `llm/mcp_server.py` exposing the tools listed above.
-2. `llm/protocol_agent.py` is the agent loop: takes a patient ailment, runs an Anthropic or OpenAI chat with tool use against the MCP, terminates when the LLM emits a final protocol.
-3. Put `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` in `.env`.
-
-### Dashboard
-
-Separate `dashboard/` Vite app (not yet scaffolded). At load: fetches `/tasks` and `aparc_centroids.json`, renders 68 region nodes on a brain GLB. On interaction:
-
-1. User clicks brain → raycast hits surface → places electrode (surface + normal locked, ~1 mm offset).
-2. User picks modality, current, freq.
-3. `physics.ts` computes T × 68 `field_per_region` from electrode list.
-4. POST `/infer` → receives T × 68 activations → animates region nodes (color = activation).
-5. WebSocket subscription to MCP server: when LLM places electrodes, dashboard mirrors them.
-
----
-
-## Repo layout (target)
-
-```
-.
-├── README.md
-├── pixi.toml
-├── docs/                       # research papers (already present)
-├── data/                       # gitignored heavy assets
-├── ctrnn/
-│   ├── model.py                # CTRNN with connectome mask, field-as-input
-│   ├── train.py
-│   ├── infer_server.py         # FastAPI: /tasks, /bundle/<task>, /infer
-│   └── bundles/
-│       ├── aparc_centroids.json
-│       ├── perceptual_decision.{json,pt}
-│       ├── working_memory.{json,pt}
-│       └── reaction_time.{json,pt}
-├── llm/
-│   ├── mcp_server.py           # exposes place_electrode etc
-│   └── protocol_agent.py
-└── dashboard/
-    ├── package.json
-    └── src/
-        ├── api.ts              # /infer, /tasks, /bundle wrappers
-        ├── physics.ts          # electrodes -> T x 68 field_per_region (V/m)
-        ├── brain/              # r3f scene, electrode placement
-        └── llm/                # WebSocket sub to MCP electrode updates
-```
-
----
-
-## Hack rule
-
-Strict no-prior-work policy: every line written in the hack window. No copying from previous repos.
-
-## Enigma
-```bash
-pixi shell
-git clone https://github.com/MICA-MNI/ENIGMA.git
-cd ENIGMA
-python setup.py install
-exit
-```
+- **Open** with (1) hero and (2) LLM-in-motion side by side. People
+  see both halves of the system in one glance.
+- **Middle** with (3) field overlay, (4) activation strip, (6) network
+  topology — depth and "it's working" evidence.
+- **Close** with (5) no-stim vs stim — the moment of truth.
+- **Appendix slide** for technical audiences: (8) architecture, (9)
+  bundle contract, (10) dynamics code.

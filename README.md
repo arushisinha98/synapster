@@ -6,9 +6,9 @@ A live tool for designing personalized brain stimulation protocols.
 Type a patient ailment, and an LLM agent reads papers, places electrodes
 on a 3D brain, runs a simulation, and refines until it converges on a
 protocol. The "brain" is a CTRNN wired by a real human connectome and
-pre-trained on three cognitive tasks. The "stimulation" is real V/m
-field physics coupled into the model dynamics. The LLM acts through
-tools, not freeform text.
+trained on three cognitive tasks on a high-performance cluster. The 
+"stimulation" is real V/m field physics coupled into the model dynamics.
+The LLM acts through tools, not freeform text.
 
 ## The story
 

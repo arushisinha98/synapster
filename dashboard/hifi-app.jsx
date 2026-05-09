@@ -39,23 +39,40 @@ const Slider = ({ value, label, unit, onChange }) => {
 };
 
 // ---------- title bar ----------
-const TitleBar = () => (
-  <div className="bar" style={{ gridColumn: '1 / -1' }}>
-    <span className="logo">C</span>
-    <span className="t-md t-bold">CTRNN-Viewer</span>
-    <span className="t-mono t-xs t-mute">/ untitled-montage.json</span>
-    <span className="t-mono t-xs" style={{ color: 'var(--accent-2)' }}>●</span>
-    <div style={{ flex: 1 }} />
-    <Mono className="t-xs" mute>⌘K · cmd palette</Mono>
-    <span className="vdiv" />
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <span className="dot dot-live" />
-      <Mono soft className="t-xs">2 collaborators</Mono>
-    </span>
-    <Btn size="sm">Share</Btn>
-    <Btn size="sm" variant="primary">▶ Simulate</Btn>
-  </div>
-);
+const TitleBar = ({ onSimulate, simState, simError }) => {
+  const dotClass = simState === 'error' ? 'dot' : 'dot dot-live';
+  const dotStyle = simState === 'error' ? { background: '#ff6b6b', boxShadow: '0 0 8px #ff6b6b' } : {};
+  const statusText = simState === 'error'
+    ? (simError || 'backend error')
+    : simState === 'running'
+    ? 'simulating…'
+    : simState === 'done'
+    ? 'sim ready'
+    : '2 collaborators';
+  const btnLabel = simState === 'running' ? '⋯ running' : '▶ Simulate';
+  return (
+    <div className="bar" style={{ gridColumn: '1 / -1' }}>
+      <span className="logo">C</span>
+      <span className="t-md t-bold">CTRNN-Viewer</span>
+      <span className="t-mono t-xs t-mute">/ untitled-montage.json</span>
+      <span className="t-mono t-xs" style={{ color: 'var(--accent-2)' }}>●</span>
+      <div style={{ flex: 1 }} />
+      <Mono className="t-xs" mute>⌘K · cmd palette</Mono>
+      <span className="vdiv" />
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span className={dotClass} style={dotStyle} />
+        <Mono soft className="t-xs" style={simState === 'error' ? { color: '#ff8e8e' } : {}}>{statusText}</Mono>
+      </span>
+      <Btn size="sm">Share</Btn>
+      <Btn
+        size="sm"
+        variant="primary"
+        onClick={simState === 'running' ? undefined : onSimulate}
+        style={simState === 'running' ? { opacity: 0.6, cursor: 'wait' } : {}}
+      >{btnLabel}</Btn>
+    </div>
+  );
+};
 
 // neurogym task slots — match README integration contract
 const TASK_OPTIONS = [
@@ -106,111 +123,125 @@ const Toolbar = ({ tool, setTool, mode, setMode, task, setTask, view, setView })
 );
 
 // ---------- agent rail ----------
-const AgentRail = ({ onApply }) => {
-  const [thinking, setThinking] = useState(false);
+const AgentRail = ({ ailment, setAilment, onSubmit, onApply, agentState, agentResult, agentError }) => {
+  const onKey = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      onSubmit();
+    }
+  };
+  const result = agentResult;
   return (
     <div className="panel" style={{ borderRight: '1px solid var(--line)' }}>
       <div className="panel-h">
-        <span className="dot dot-stim" />
+        <span className={`dot ${agentState === 'thinking' ? 'dot-stim' : agentState === 'done' ? 'dot-live' : ''}`} />
         <span className="t-bold">Protocol Agent</span>
         <span style={{ flex: 1 }} />
-        <Mono soft className="t-xs">haiku · 14 papers</Mono>
+        <Mono soft className="t-xs">claude · web search</Mono>
       </div>
 
       <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* patient context summary */}
+        {/* patient/ailment input */}
         <div className="card" style={{ padding: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <Mono soft className="t-xs t-up">Patient</Mono>
+            <Mono soft className="t-xs t-up">Patient ailment</Mono>
             <span style={{ flex: 1 }} />
-            <Mono soft className="t-xs">edit</Mono>
+            <Mono mute className="t-xs">⌘↵ submit</Mono>
           </div>
-          <div className="t-md" style={{ lineHeight: 1.45 }}>
-            58M, ADHD, working-memory deficits.
-          </div>
-          <div className="t-mono t-xs t-soft" style={{ marginTop: 4 }}>
-            n-back d′ 1.2 · DSM-5 · no contraindications
-          </div>
-        </div>
-
-        {/* user message */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div className="msg-user">Best non-invasive option for sustaining WM gains over 6 weeks?</div>
-          <Mono mute className="t-xs" style={{ alignSelf: 'flex-end' }}>2m ago</Mono>
-        </div>
-
-        {/* agent reasoning */}
-        <div className="msg-agent">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <Mono soft className="t-xs t-up">Reasoning</Mono>
-            <span className="prog" style={{ flex: 1, height: 2 }}><span className="prog-fill" style={{ width: '100%' }} /></span>
-            <Mono mute className="t-xs">4.2s</Mono>
-          </div>
-          <div className="agent-think">
-            <b>›</b> querying pubmed: <i>"tACS working memory ADHD"</i><br/>
-            <b>›</b> 11 hits · 2 RCTs (Reinhart '19, Vosskuhl '15)<br/>
-            <b>›</b> filtering by sham-controlled, n &gt; 20<br/>
-            <b>›</b> theta-band entrainment of fronto-parietal WM<br/>
-            <b>›</b> ranking 3 protocols by effect size + safety<br/>
-            <b style={{ color: 'var(--accent-2)' }}>✓</b> recommendation ready
+          <textarea
+            value={ailment}
+            onChange={e => setAilment(e.target.value)}
+            onKeyDown={onKey}
+            placeholder="e.g. treatment-resistant depression, ADHD with WM deficits, focal motor seizures..."
+            rows={3}
+            style={{
+              width: '100%', resize: 'vertical', minHeight: 60,
+              background: 'var(--panel)', color: 'var(--ink)',
+              border: '1px solid var(--line)', borderRadius: 6,
+              padding: 8, fontFamily: 'var(--sans)', fontSize: 12, lineHeight: 1.45,
+              outline: 'none',
+            }}
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <Btn
+              size="sm"
+              variant="primary"
+              onClick={agentState === 'thinking' ? undefined : onSubmit}
+              style={agentState === 'thinking' ? { opacity: 0.6, cursor: 'wait' } : {}}
+            >{agentState === 'thinking' ? '⋯ thinking' : '↗ Recommend protocol'}</Btn>
+            {agentState === 'error' && (
+              <Mono className="t-xs" style={{ color: '#ff8e8e', alignSelf: 'center' }}>{agentError}</Mono>
+            )}
           </div>
         </div>
 
-        {/* recommended protocol */}
-        <div className="card card-accent">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <Chip accent>RECOMMENDED</Chip>
-            <span className="t-bold t-md">θ-tACS DLPFC bilateral</span>
+        {/* live reasoning when thinking */}
+        {agentState === 'thinking' && (
+          <div className="msg-agent">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <Mono soft className="t-xs t-up">Reasoning</Mono>
+              <span className="prog" style={{ flex: 1, height: 2 }}><span className="prog-fill" style={{ width: '60%' }} /></span>
+              <Mono mute className="t-xs">~10s</Mono>
+            </div>
+            <div className="agent-think">
+              <b>›</b> querying claude with web search…<br/>
+              <b>›</b> evaluating recent RCTs and clinical guidelines<br/>
+              <b>›</b> selecting modality and target regions in MNI space<br/>
+              <b>›</b> validating DOIs against pubmed
+            </div>
           </div>
-          <div className="kv" style={{ marginBottom: 10 }}>
-            <span className="k">Mode</span><span className="v">tACS · sinusoidal</span>
-            <span className="k">Anode</span><span className="v">F3 · left DLPFC</span>
-            <span className="k">Cathode</span><span className="v">F4 · right DLPFC</span>
-            <span className="k">Carrier</span><span className="v">6.0 Hz · θ-band</span>
-            <span className="k">Amplitude</span><span className="v">1.5 mA peak-to-peak</span>
-            <span className="k">Schedule</span><span className="v">20 min × 10 sessions</span>
-          </div>
-          <div className="t-mono t-xs t-soft" style={{ marginBottom: 10, lineHeight: 1.5 }}>
-            "Theta entrainment of fronto-parietal network sustains WM gains 4+ wks post-stim."
-            <span style={{ color: 'var(--ink-4)' }}> — Reinhart, Nat Neuro '19</span>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <Btn size="sm" variant="accent" onClick={onApply}>↗ Apply to brain</Btn>
-            <Btn size="sm">3 papers</Btn>
-            <Btn size="sm">Edit</Btn>
-          </div>
-        </div>
+        )}
 
-        {/* alternatives */}
-        <div>
-          <Mono soft className="t-xs t-up" style={{ marginBottom: 6, display: 'block' }}>2 alternatives</Mono>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[
-              { name: 'Anodal tDCS · L-DLPFC', mode: 'tDCS', conf: 0.62 },
-              { name: 'TI · subgenual ACC (deep)', mode: 'TI', conf: 0.39, exp: true },
-            ].map(p => (
-              <div key={p.name} className="card" style={{ padding: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Chip>{p.mode}</Chip>
-                <span className="t-md" style={{ flex: 1 }}>{p.name}</span>
-                {p.exp && <Mono mute className="t-xs">EXP</Mono>}
-                <Mono className="t-xs">{p.conf.toFixed(2)}</Mono>
+        {/* returned protocol */}
+        {result && (
+          <div className="card card-accent">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Chip accent>RECOMMENDED</Chip>
+              <span className="t-bold t-md">{result.modality || 'protocol'}</span>
+            </div>
+            <div className="kv" style={{ marginBottom: 10 }}>
+              <span className="k">modality</span><span className="v">{result.modality || '—'}</span>
+              <span className="k">electrodes</span><span className="v">{Array.isArray(result.electrodes) ? result.electrodes.length : 0}</span>
+              {Array.isArray(result.electrodes) && result.electrodes.map((e, i) => (
+                <React.Fragment key={i}>
+                  <span className="k">e{i + 1}</span>
+                  <span className="v">
+                    [{(e.pos || []).map(v => Number(v).toFixed(0)).join(', ')}] · {Number(e.current_mA || 0).toFixed(1)} mA{e.freq_Hz ? ` · ${e.freq_Hz} Hz` : ''}
+                  </span>
+                </React.Fragment>
+              ))}
+            </div>
+            {result.rationale && (
+              <div className="t-mono t-xs t-soft" style={{ marginBottom: 10, lineHeight: 1.5 }}>
+                {result.rationale}
               </div>
-            ))}
+            )}
+            {Array.isArray(result.papers) && result.papers.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <Mono soft className="t-xs t-up" style={{ display: 'block', marginBottom: 4 }}>papers</Mono>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {result.papers.map((p, i) => (
+                    <a key={i} href={p} target="_blank" rel="noreferrer"
+                       className="t-mono t-xs"
+                       style={{ color: 'var(--accent-3)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Btn size="sm" variant="accent" onClick={() => onApply(result.electrodes)}>↗ Apply to brain</Btn>
+              <Btn size="sm" onClick={() => navigator.clipboard?.writeText(JSON.stringify(result, null, 2))}>copy JSON</Btn>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* composer */}
-      <div style={{ padding: 12, borderTop: '1px solid var(--line)', background: 'var(--panel-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 6 }}>
-          <span style={{ flex: 1 }} className="t-mono t-xs t-mute">refine: "what about γ-band instead?"</span>
-          <Btn size="sm" variant="primary">↗</Btn>
-        </div>
-        <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
-          <Chip>+ patient ctx</Chip>
-          <Chip>+ baseline scan</Chip>
-          <Chip>+ contraindications</Chip>
-        </div>
+        {!result && agentState !== 'thinking' && (
+          <Mono mute className="t-xs">
+            Type an ailment above and click "Recommend protocol" to query the agent.
+          </Mono>
+        )}
       </div>
     </div>
   );
@@ -380,12 +411,16 @@ const Inspector = ({ hud, mode, amp, setAmp, freqHz, setFreqHz, cortexOpacity, s
 };
 
 // ---------- timeline ----------
-const Timeline = ({ mode }) => {
+const Timeline = ({ mode, onTick }) => {
   const [t, setT] = useState(0.21);
   useEffect(() => {
-    const id = setInterval(() => setT(v => (v + 0.0008) % 1), 32);
+    const id = setInterval(() => setT(v => {
+      const nv = (v + 0.0008) % 1;
+      onTick?.(nv);
+      return nv;
+    }), 32);
     return () => clearInterval(id);
-  }, []);
+  }, [onTick]);
   return (
     <div style={{
       gridColumn: '1 / -1', borderTop: '1px solid var(--line)', background: 'var(--panel)',
@@ -542,6 +577,12 @@ const HifiApp = () => {
   const [freqHz, setFreqHz] = useState(6);       // tACS carrier
   const [cortexOpacity, setCortexOpacityState] = useState(0.62);
   const [stimJson, setStimJson] = useState(null);
+  const [simState, setSimState] = useState('idle');     // idle | running | done | error
+  const [simError, setSimError] = useState(null);
+  const [ailment, setAilment] = useState('');
+  const [agentState, setAgentState] = useState('idle'); // idle | thinking | done | error
+  const [agentError, setAgentError] = useState(null);
+  const [agentResult, setAgentResult] = useState(null);
   const [hud, setHud] = useState({ stimmed: 0, total: 68, peakE: 0, focality: 0, electrodes: 0 });
   const brainRef = useRef(null);
 
@@ -558,11 +599,94 @@ const HifiApp = () => {
     }
   };
 
+  const handleSimulate = async () => {
+    if (simState === 'running') return;
+    const api = window.synapsterApi;
+    if (!api) {
+      setSimError('api wrapper missing');
+      setSimState('error');
+      return;
+    }
+    const payload = brainRef.current?.getStimJson(task, mode, amp * 4, freqHz);
+    if (!payload) {
+      setSimError('no stim payload');
+      setSimState('error');
+      return;
+    }
+    // Backend's /infer accepts `task` + `field_per_region`. Trim metadata
+    // fields the server ignores anyway.
+    const body = { task: payload.task, field_per_region: payload.field_per_region };
+    setSimState('running');
+    setSimError(null);
+    try {
+      const resp = await api.infer(body);
+      brainRef.current?.setActivations(resp.activations);
+      console.log('[infer] ok', { T: resp.activations?.length, dt_ms: resp.dt_ms });
+      setSimState('done');
+    } catch (e) {
+      const msg = String(e?.message || e);
+      const friendly = /401/.test(msg)
+        ? 'auth failed'
+        : /Failed to fetch|NetworkError|CORS/i.test(msg)
+        ? 'backend offline'
+        : msg.length > 80 ? msg.slice(0, 77) + '…' : msg;
+      console.warn('[infer] error:', msg);
+      setSimError(friendly);
+      setSimState('error');
+    }
+  };
+
+  const handleTimelineTick = (t) => {
+    brainRef.current?.setPlaybackT(t);
+  };
+
+  const handleAgentSubmit = async () => {
+    const text = (ailment || '').trim();
+    if (!text || agentState === 'thinking') return;
+    const api = window.synapsterApi;
+    if (!api) {
+      setAgentError('api wrapper missing');
+      setAgentState('error');
+      return;
+    }
+    setAgentState('thinking');
+    setAgentError(null);
+    try {
+      const result = await api.protocol(text);
+      console.log('[protocol]', result);
+      setAgentResult(result);
+      setAgentState('done');
+    } catch (e) {
+      const msg = String(e?.message || e);
+      const friendly = /401/.test(msg) ? 'auth failed'
+        : /503/.test(msg) ? 'agent not configured'
+        : /502/.test(msg) ? 'anthropic error'
+        : /Failed to fetch|NetworkError|CORS/i.test(msg) ? 'backend offline'
+        : msg.length > 80 ? msg.slice(0, 77) + '…' : msg;
+      console.warn('[protocol] error:', msg);
+      setAgentError(friendly);
+      setAgentState('error');
+    }
+  };
+
+  const handleApplyProtocol = (electrodes) => {
+    if (Array.isArray(electrodes) && electrodes.length) {
+      brainRef.current?.applyProtocol(electrodes);
+    }
+  };
+
   return (
     <div className="hf">
-      <TitleBar />
+      <TitleBar onSimulate={handleSimulate} simState={simState} simError={simError} />
       <Toolbar tool={tool} setTool={setTool} mode={mode} setMode={setMode} task={task} setTask={setTask} view={view} setView={setView} />
-      <AgentRail onApply={() => brainRef.current?.addProtocol()} />
+      <AgentRail
+        ailment={ailment} setAilment={setAilment}
+        onSubmit={handleAgentSubmit}
+        onApply={handleApplyProtocol}
+        agentState={agentState}
+        agentResult={agentResult}
+        agentError={agentError}
+      />
       <div style={{ position: 'relative', background: 'radial-gradient(ellipse at 30% 30%, #1a1c22 0%, #0a0b0d 70%)' }}>
         <HifiBrainViewport ref={brainRef} onHud={setHud} />
         <ViewportOverlay hud={hud} />
@@ -574,7 +698,7 @@ const HifiApp = () => {
         cortexOpacity={cortexOpacity} setCortexOpacity={setCortexOpacity}
         onViewStimJson={handleViewStimJson}
       />
-      <Timeline mode={mode} />
+      <Timeline mode={mode} onTick={handleTimelineTick} />
       <StimJsonModal json={stimJson} onClose={() => setStimJson(null)} />
     </div>
   );

@@ -22,16 +22,21 @@ import argparse
 from dotenv import load_dotenv
 import anthropic
 
-# ── Load API key from .env ────────────────────────────────────────────────────
+# ── API key + client are lazy ──────────────────────────────────────────────────
+# Resolved on first get_protocol() call rather than at import time, so this
+# module can be imported (e.g. by ctrnn/infer_server.py) even when the key
+# isn't configured yet.
 load_dotenv()
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-if not ANTHROPIC_API_KEY:
-    raise EnvironmentError(
-        "ANTHROPIC_API_KEY not found. Add it to your .env file:\n"
-        "  ANTHROPIC_API_KEY=sk-ant-..."
-    )
 
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+def _client() -> "anthropic.Anthropic":
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        raise EnvironmentError(
+            "ANTHROPIC_API_KEY not found. Add it to your .env file:\n"
+            "  ANTHROPIC_API_KEY=sk-ant-..."
+        )
+    return anthropic.Anthropic(api_key=key)
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """
@@ -75,7 +80,7 @@ def get_protocol(ailment: str) -> dict:
     """
     print(f"[protocol_agent] Querying Claude for ailment: '{ailment}'")
 
-    response = client.messages.create(
+    response = _client().messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=1000,
         system=SYSTEM_PROMPT,

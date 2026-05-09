@@ -40,10 +40,15 @@ from typing import List, Optional
 
 import numpy as np
 import torch
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
+
+# Pull ANTHROPIC_API_KEY (and any other secrets) from a .env at repo root.
+# Load before any module that depends on env vars at import time.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Allow `python ctrnn/infer_server.py` and `python -m ctrnn.infer_server`.
 ROOT = Path(__file__).resolve().parent.parent
@@ -396,6 +401,49 @@ def infer(req: InferRequest, _: None = _Auth) -> InferResponse:
         task_output=outputs.squeeze(1).cpu().numpy().tolist(),
         dt_ms=float(bundle["dt_ms"]),
     )
+
+
+# ---------------------------------------------------------------------------
+# LLM protocol agent — POST /protocol
+# ---------------------------------------------------------------------------
+
+
+class ProtocolRequest(BaseModel):
+    ailment: str = Field(..., description="patient ailment (free text)")
+
+
+@app.post("/protocol")
+def protocol(req: ProtocolRequest, _: None = _Auth) -> dict:
+    """Run the Anthropic-backed protocol agent on an ailment string.
+
+    Returns the schema {modality, electrodes, rationale, papers} as defined
+    by llm/protocol_agent.py's SYSTEM_PROMPT. Errors:
+      503  ANTHROPIC_API_KEY not configured on server
+      502  Anthropic API call failed (network, rate limit, etc.)
+      500  agent returned a non-JSON response
+    """
+    ailment = (req.ailment or "").strip()
+    if not ailment:
+        raise HTTPException(400, "ailment must be a non-empty string")
+
+    # Late import so a missing key doesn't kill the whole server at startup.
+    try:
+        from llm.protocol_agent import get_protocol  # type: ignore
+    except Exception as e:  # pragma: no cover
+        raise HTTPException(500, f"protocol agent unavailable: {e}")
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise HTTPException(503, "ANTHROPIC_API_KEY not set on server")
+
+    try:
+        return get_protocol(ailment)
+    except EnvironmentError as e:
+        raise HTTPException(503, str(e))
+    except ValueError as e:
+        # Bad JSON from the model; surface so the caller can retry.
+        raise HTTPException(500, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"anthropic call failed: {e}")
 
 
 if __name__ == "__main__":

@@ -84,29 +84,30 @@ class InferResponse(BaseModel):
 
 
 class TaskBundle:
-    """In-memory wrapper around a trained CTRNN bundle."""
+    """In-memory wrapper around a trained CTRNN bundle.
 
-    def __init__(self, task_dir: Path):
-        meta_path = task_dir / "model_bundle.json"
-        if not meta_path.exists():
-            raise FileNotFoundError(f"missing bundle: {meta_path}")
-        with open(meta_path) as f:
+    Bundle layout (flat, matching ctrnn/train.py output):
+      ctrnn/bundles/<task>.json    metadata
+      ctrnn/bundles/<task>.pt      weights (sibling to the json)
+    """
+
+    def __init__(self, json_path: Path):
+        with open(json_path) as f:
             self.meta = json.load(f)
         self.task = self.meta["task"]
         self.dt_ms = float(self.meta.get("dt_ms", 20))
         self.alpha = float(self.meta.get("coupling_alpha_mV_per_Vm", 0.1))
-        # Lazy: weights load on first /infer call so /tasks stays cheap.
-        self._model: Any = None
-        self._weights_path = task_dir / Path(self.meta["weights_path"]).name
+        # Sibling weights file: <task>.pt next to <task>.json.
+        self._weights_path = json_path.with_suffix(".pt")
+        self._model: Any = None  # lazy load on first /infer
 
     def model(self) -> Any:
         if self._model is None:
-            # Imported here so /tasks works without torch being healthy.
             from ctrnn.model import CTRNN  # type: ignore
 
             sd = torch.load(self._weights_path, map_location="cpu", weights_only=False)
-            # Bundle should carry enough kwargs to reconstruct the CTRNN. If
-            # this dict shape evolves with model.py, adjust here only.
+            # Bundle declares enough kwargs to reconstruct the CTRNN. If
+            # model.py's signature evolves, adjust only here.
             kwargs = self.meta.get("model_kwargs", {})
             net = CTRNN(**kwargs)
             net.load_state_dict(sd)
@@ -119,13 +120,15 @@ def discover_bundles() -> dict[str, TaskBundle]:
     out: dict[str, TaskBundle] = {}
     if not BUNDLE_DIR.exists():
         return out
-    for d in sorted(BUNDLE_DIR.iterdir()):
-        if d.is_dir() and (d / "model_bundle.json").exists():
-            try:
-                b = TaskBundle(d)
-                out[b.task] = b
-            except Exception as e:
-                print(f"[infer] skip bundle {d.name}: {e}")
+    for json_path in sorted(BUNDLE_DIR.glob("*.json")):
+        try:
+            b = TaskBundle(json_path)
+            if not b._weights_path.exists():
+                print(f"[infer] skip {json_path.name}: missing {b._weights_path.name}")
+                continue
+            out[b.task] = b
+        except Exception as e:
+            print(f"[infer] skip bundle {json_path.name}: {e}")
     return out
 
 

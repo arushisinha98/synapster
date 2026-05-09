@@ -38,8 +38,10 @@ gym = "*"
 anthropic = ">=0.40"
 openai = ">=1.40"
 arxiv = ">=2.1"
-trimesh = ">=4.0"
-fast-simplification = ">=0.1.13"
+# trimesh + fast-simplification used only by dashboard/scripts/preprocess_brain*.py
+# and dashboard/scripts/test_aparc_inside.py (one-shot tools, not by backend).
+# Kept out of pixi to avoid cross-platform PyPI resolve issues. Install ad-hoc:
+#   pip install trimesh fast-simplification rtree
 
 # Two envs: `default` (CPU/MPS, used on macOS) and `hpc` (CUDA on linux-64).
 # Run training on the cluster with: pixi run -e hpc python ctrnn/train.py ...

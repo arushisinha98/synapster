@@ -113,19 +113,40 @@ def get_protocol(ailment: str) -> dict:
 
     raw_text = "\n".join(text_blocks).strip()
 
-    # Strip accidental markdown fences just in case
-    if raw_text.startswith("```"):
-        raw_text = raw_text.split("```")[1]
-        if raw_text.startswith("json"):
-            raw_text = raw_text[4:]
-        raw_text = raw_text.strip()
+    # When web_search is enabled, Claude often emits a short prose preamble
+    # then the JSON inside a ```json fenced block. Be flexible:
+    #   1) try a fenced ```json ... ``` block first
+    #   2) fall back to the first balanced {...} substring
+    #   3) finally try to parse the whole response
+    candidates = []
+    fence_start = raw_text.find("```")
+    if fence_start != -1:
+        rest = raw_text[fence_start + 3:]
+        if rest.lower().startswith("json"):
+            rest = rest[4:]
+        fence_end = rest.find("```")
+        if fence_end != -1:
+            candidates.append(rest[:fence_end].strip())
 
-    try:
-        protocol = json.loads(raw_text)
-    except json.JSONDecodeError as e:
+    first_brace = raw_text.find("{")
+    last_brace = raw_text.rfind("}")
+    if first_brace != -1 and last_brace > first_brace:
+        candidates.append(raw_text[first_brace : last_brace + 1])
+
+    candidates.append(raw_text)
+
+    protocol = None
+    last_err = None
+    for cand in candidates:
+        try:
+            protocol = json.loads(cand)
+            break
+        except json.JSONDecodeError as e:
+            last_err = e
+    if protocol is None:
         raise ValueError(
-            f"Could not parse Claude's response as JSON.\n"
-            f"Raw response:\n{raw_text}\n\nError: {e}"
+            "Could not parse Claude's response as JSON.\n"
+            f"Raw response:\n{raw_text}\n\nLast error: {last_err}"
         )
 
     print("[protocol_agent] Protocol received successfully.")

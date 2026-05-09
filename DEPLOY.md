@@ -52,8 +52,8 @@ Run on MBP-2, **two terminals** (or tmux):
 ```bash
 cd ~/path/to/synapster
 export API_PASSWORD="judge-2026"   # MUST match NEXT_PUBLIC_PASSWORD on Vercel
-pixi run uvicorn ctrnn.infer:app --host 0.0.0.0 --port 8000
-# (or: caffeinate -dimsu pixi run uvicorn ctrnn.infer:app --host 0.0.0.0 --port 8000)
+pixi run uvicorn ctrnn.infer_server:app --host 0.0.0.0 --port 8000
+# (or: caffeinate -dimsu pixi run uvicorn ctrnn.infer_server:app --host 0.0.0.0 --port 8000)
 ```
 
 **Terminal 2 — tunnel:**
@@ -77,9 +77,9 @@ curl -u "synapster:judge-2026" https://synapster-api.martinlombard.com/tasks
 
 ---
 
-## Backend (`ctrnn/infer.py`)
+## Backend (`ctrnn/infer_server.py`)
 
-The FastAPI app at `ctrnn/infer.py` already wires:
+The FastAPI app at `ctrnn/infer_server.py` already wires:
 
 - **CORS middleware** — `allow_origins = ALLOWED_ORIGIN` env var, or `*` if unset.
 - **HTTP Basic Auth** on `/tasks`, `/bundle/<task>`, `/infer` via the `API_PASSWORD` env var. Username is ignored — any string works; password must match. Public route: `/health` (for tunnel diagnostics).
@@ -100,7 +100,7 @@ caffeinate -dimsu &   # prevents sleep, lid-close sleep, display sleep
 
 Or run `caffeinate` in front of the uvicorn command:
 ```bash
-caffeinate -dimsu uvicorn ctrnn.infer:app --port 8000
+caffeinate -dimsu uvicorn ctrnn.infer_server:app --port 8000
 ```
 
 ---
@@ -110,7 +110,7 @@ caffeinate -dimsu uvicorn ctrnn.infer:app --port 8000
 Two layers, both gated by the **same password**:
 
 1. **Frontend overlay** (visibility gate) — `dashboard/index.html` JS compares user input against `window.SYNAPSTER_CONFIG.PASSWORD` (set at Vercel build time from `NEXT_PUBLIC_PASSWORD`). Persisted in `sessionStorage`. This stops casual snoopers from seeing the dashboard, but the password is readable in page source — *not* a real security barrier.
-2. **Backend HTTP Basic Auth** — `ctrnn/infer.py` requires `Authorization: Basic <base64(any:API_PASSWORD)>` on every protected route. Even if someone bypasses the frontend, they can't hit `/tasks`, `/bundle/<task>`, or `/infer` without the password.
+2. **Backend HTTP Basic Auth** — `ctrnn/infer_server.py` requires `Authorization: Basic <base64(any:API_PASSWORD)>` on every protected route. Even if someone bypasses the frontend, they can't hit `/tasks`, `/bundle/<task>`, or `/infer` without the password.
 
 **Critical: keep `NEXT_PUBLIC_PASSWORD` (Vercel) and `API_PASSWORD` (MBP-2) in sync.** If they diverge, the frontend will pass through the gate but every backend call will 401.
 

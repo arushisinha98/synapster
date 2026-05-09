@@ -30,6 +30,8 @@ or:
 from __future__ import annotations
 
 import json
+import os
+import secrets
 import sys
 import warnings
 from contextlib import asynccontextmanager
@@ -38,8 +40,9 @@ from typing import List, Optional
 
 import numpy as np
 import torch
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
 
 # Allow `python ctrnn/infer_server.py` and `python -m ctrnn.infer_server`.
@@ -274,14 +277,43 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="synapster CTRNN inference", lifespan=lifespan)
 
-# Permissive CORS for local dashboard development. Tighten before any deployment
-# beyond `localhost`.
+# Permissive CORS for local dashboard development. Tighten via ALLOWED_ORIGIN.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[os.environ.get("ALLOWED_ORIGIN", "*")],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+# HTTP Basic on every protected route. Username is ignored; password must
+# equal the API_PASSWORD env var. Frontend (dashboard/api.js) sends
+#   Authorization: Basic <base64("judge:" + PASSWORD)>
+# /health is intentionally public for tunnel diagnostics.
+_security = HTTPBasic()
+
+
+def require_password(creds: HTTPBasicCredentials = Depends(_security)) -> None:
+    expected = os.environ.get("API_PASSWORD", "")
+    if not expected:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "API_PASSWORD env var not set on server",
+        )
+    if not secrets.compare_digest(creds.password.encode(), expected.encode()):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+
+_Auth = Depends(require_password)
 
 
 # ---------------------------------------------------------------------------
@@ -289,14 +321,25 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 
+@app.get("/health")
+def health() -> dict:
+    """Public liveness probe; safe to curl from anywhere (no auth)."""
+    return {
+        "ok": True,
+        "n_tasks": len(_TASKS),
+        "tasks": sorted(_TASKS.keys()),
+        "auth_configured": bool(os.environ.get("API_PASSWORD")),
+    }
+
+
 @app.get("/tasks")
-def list_tasks() -> list[str]:
+def list_tasks(_: None = _Auth) -> list[str]:
     """README §API: return loaded task keys (snake_case)."""
     return sorted(_TASKS.keys())
 
 
 @app.get("/bundle/{task}")
-def get_bundle(task: str) -> dict:
+def get_bundle(task: str, _: None = _Auth) -> dict:
     """README §API: return the bundle JSON for one task verbatim."""
     if task not in _TASKS:
         raise HTTPException(404, f"unknown task: {task}")
@@ -304,7 +347,7 @@ def get_bundle(task: str) -> dict:
 
 
 @app.post("/infer", response_model=InferResponse)
-def infer(req: InferRequest) -> InferResponse:
+def infer(req: InferRequest, _: None = _Auth) -> InferResponse:
     """README §API: run one trial through the CTRNN under the given field.
 
     Steps:
